@@ -1,5 +1,8 @@
 # AI Neural Network Framework
 
+chmod +x setup_and_run.sh
+
+
 An advanced AI neural network framework implemented in Go, designed for building flexible, modular, and customizable neural network architectures. The framework supports a wide range of neuron types, distributed computing capabilities, and quantum-inspired features, enabling the creation of next-generation neural networks.
 
 ## Overview

@@ -7,7 +7,7 @@ from docx.oxml import OxmlElement
 from docx.shared import RGBColor
 
 # List of selected .go files to include in the documentation
-GO_FILES = ['blueprint.go', 'neuron.go', 'eval.go', 'utils.go']
+GO_FILES = ['activations.go','blueprint.go', 'neuron.go', 'utils.go']
 
 # Output Word document name
 OUTPUT_DOC = 'Go_Code_Documentation.docx'

@@ -162,7 +162,7 @@ func (bp *Blueprint) Forward(inputs map[int]float64, timesteps int) {
 	}
 
 	// Apply softmax to output neurons
-	bp.ApplySoftmax()
+	//bp.ApplySoftmax()
 }
 
 // RunNetwork runs the neural network with given inputs and timesteps
