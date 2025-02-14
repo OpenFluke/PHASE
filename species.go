@@ -12,21 +12,37 @@ func BlueprintSimilarity(bp1, bp2 *Blueprint) float64 {
 	totalSim := 0.0
 	count := 0.0
 
-	// Iterate over neurons in bp1 and compare with the corresponding neuron in bp2.
+	// Iterate over all neurons in bp1.
 	for id, neuron1 := range bp1.Neurons {
 		if neuron2, exists := bp2.Neurons[id]; exists {
-			// Compare biases using a normalized similarity measure.
+			// Compare neuron types. If different, assign a low similarity (or 0).
+			typeSim := 1.0
+			if neuron1.Type != neuron2.Type {
+				typeSim = 0.0 // or you could use a partial penalty like 0.5
+			}
+			totalSim += typeSim
+			count++
+
+			// Compare activation functions (if you want to be sensitive here).
+			actSim := 1.0
+			if neuron1.Activation != neuron2.Activation {
+				actSim = 0.0 // or use a partial penalty
+			}
+			totalSim += actSim
+			count++
+
+			// Compare biases.
 			biasDenom := math.Abs(neuron1.Bias) + math.Abs(neuron2.Bias) + 1e-7
 			biasSim := 1.0 - math.Abs(neuron1.Bias-neuron2.Bias)/biasDenom
 			totalSim += biasSim
 			count++
 
-			// Compare connection weights for the connections that both neurons share.
-			minConns := len(neuron1.Connections)
-			if len(neuron2.Connections) < minConns {
-				minConns = len(neuron2.Connections)
+			// Compare connection weights for common connections.
+			commonConns := len(neuron1.Connections)
+			if len(neuron2.Connections) < commonConns {
+				commonConns = len(neuron2.Connections)
 			}
-			for i := 0; i < minConns; i++ {
+			for i := 0; i < commonConns; i++ {
 				w1 := neuron1.Connections[i][1]
 				w2 := neuron2.Connections[i][1]
 				weightDenom := math.Abs(w1) + math.Abs(w2) + 1e-7
@@ -34,16 +50,45 @@ func BlueprintSimilarity(bp1, bp2 *Blueprint) float64 {
 				totalSim += weightSim
 				count++
 			}
+			// Penalize differences in the number of connections.
+			diffConns := math.Abs(float64(len(neuron1.Connections) - len(neuron2.Connections)))
+			maxConns := math.Max(float64(len(neuron1.Connections)), float64(len(neuron2.Connections)))
+			if maxConns > 0 {
+				connPenalty := diffConns / maxConns
+				// Subtract the penalty from the similarity (or multiply by a factor).
+				totalSim += (1.0 - connPenalty)
+				count++
+			}
+		} else {
+			// If a neuron is missing in bp2, count it as 0 similarity.
+			totalSim += 0.0
+			count++
+		}
+	}
+
+	// Also account for extra neurons in bp2.
+	for id := range bp2.Neurons {
+		if _, exists := bp1.Neurons[id]; !exists {
+			totalSim += 0.0
+			count++
 		}
 	}
 
 	if count == 0 {
-		// If there are no common neurons, return 0% similarity.
 		return 0.0
 	}
 
-	// Return average similarity (as a percentage).
-	return (totalSim / count) * 100.0
+	baseSim := totalSim / count
+
+	// Penalize differences in total neuron count.
+	n1 := len(bp1.Neurons)
+	n2 := len(bp2.Neurons)
+	diff := math.Abs(float64(n1 - n2))
+	maxCount := math.Max(float64(n1), float64(n2))
+	penalty := diff / maxCount
+
+	finalSim := baseSim * (1.0 - penalty)
+	return finalSim * 100.0 // Scale to a percentage (0–100).
 }
 
 // ClusterBlueprintsBySpecies groups blueprints into species based on a similarity threshold percentage.
