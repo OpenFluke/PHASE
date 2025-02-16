@@ -1,87 +1,118 @@
-# AI Neural Network Framework
+# PHASE – Programmable, Hyper-adaptive, Scalable Engine
 
-chmod +x setup_and_run.sh
+**PHASE** is an advanced AI neural network framework written in Go. It is designed to build flexible, modular, and customizable neural network architectures that evolve over time. With its transparent, JSON-driven configuration, PHASE enables dynamic mutation, species clustering, and distributed execution—running seamlessly on both browser (via WebAssembly) and desktop environments.
 
-
-An advanced AI neural network framework implemented in Go, designed for building flexible, modular, and customizable neural network architectures. The framework supports a wide range of neuron types, distributed computing capabilities, and quantum-inspired features, enabling the creation of next-generation neural networks.
+---
 
 ## Overview
 
-This framework provides an extensible platform for constructing neural networks with diverse neuron types and emergent properties, using JSON-based configurations. It includes features for modularity, distributed processing, and dynamic adaptability.
+PHASE provides a platform for constructing neural networks with diverse neuron types and emergent behaviors. Its design emphasizes:
 
-### Supported Neuron Types
-- **Input Neurons**: Accept input data to the network.
-- **Dense (Fully Connected) Neurons**: Standard neurons connected to all neurons in the previous layer.
-- **Recurrent Neurons (RNN)**: Maintain state across time steps, ideal for sequential data processing.
-- **Long Short-Term Memory Neurons (LSTM)**: Advanced recurrent neurons capable of learning long-term dependencies.
-- **Convolutional Neurons (CNN)**: Perform convolution operations, suitable for tasks like image processing.
-- **Attention Mechanism Neurons**: Focus on specific parts of input data using attention-based mechanisms.
-- **Dropout Neurons**: Apply dropout regularization for improving generalization.
-- **Batch Normalization Neurons**: Normalize inputs to accelerate training and improve stability.
-- **Neuro-Cellular Automata (NCA)**: Simulate decentralized, self-organizing systems inspired by cellular automata.
-- **Quantum-Inspired Neurons**: Enable quantum-like behaviors, including superposition and entanglement, for probabilistic processing.
-- **Output Neurons**: Provide the final outputs of the network.
+- **Modularity:** Every neuron, connection, and parameter is clearly defined and inspectable.
+- **Openness:** JSON-based configuration allows you to adjust the architecture without modifying source code.
+- **Reconfigurability:** Easily add, remove, or modify neurons and connections to evolve your network structure.
+- **Scalability:** Run on multiple nodes or in-browser without needing model conversion.
 
-### Distributed Features
-- **Sharding**: Divide neural networks into shards, enabling layer-by-layer distributed computation.
-- **Client-Side WebAssembly**: Run shards directly in web browsers for decentralized, scalable computation.
-- **Dynamic Evolution**: Incrementally evolve network architectures by mutating layers and connections.
-- **Resilience**: Support for recovery and continuity in distributed environments.
+---
 
-### Core Functionalities
-- **Customizable Neurons**: Define neurons with specific attributes such as types, biases, activation functions, and connections.
-- **JSON Configuration**: Load and modify network architectures using JSON files.
-- **Activation Functions**: Support for ReLU, Sigmoid, Tanh, Leaky ReLU, ELU, Softmax, and Linear functions.
-- **Forward Propagation**: Efficiently process inputs through neurons, maintaining states for recurrent and quantum neurons.
-- **Attention Mechanism**: Implement attention models for tasks requiring dynamic focus on inputs.
-- **Emergent Behavior Simulation**: Explore emergent properties from complex neuron interactions, such as self-organization and adaptive patterns.
+## Core Components
 
-## Key Features
+### 1. Benchmarking
 
-### Advanced Capabilities
-- **Quantum-Inspired Features**: Simulate quantum behaviors with superposition and entanglement to explore probabilistic states and outcomes.
-- **Dynamic Neural Evolution**: Incrementally add, remove, or modify neurons and layers to optimize network architectures.
-- **Emergent Properties**: Enable self-organizing behaviors inspired by biological and cellular systems.
-- **Batch Processing**: Efficiently handle large datasets with batched forward propagation and inference.
+PHASE includes an integrated benchmarking suite to measure floating-point operations on both single-threaded and multi-threaded setups. It computes operations per second for both float32 and float64, estimates maximum layers and nodes based on these counts, and formats large numbers into human-readable strings.
 
-### Scalability and Modularity
-- **Distributed Processing**: Leverage Kubernetes, Proxmox, and Talos for parallel execution across multiple nodes.
-- **WebAssembly Integration**: Seamlessly run network shards in browsers, democratizing AI development.
-- **Layer Sharding**: Distribute model layers for memory-efficient computation on edge devices.
+*Key Functions:*
+- **RunBenchmark:** Runs the benchmark for a specified duration.
+- **PerformFloat32Ops / PerformFloat64Ops:** Execute multiply-add operations.
+- **EstimateMaxLayersAndNodes:** Provides an estimation of network scalability.
 
-### Real-Time Adaptation
-- **Neuro-Cellular Automata (NCA)**: Implement rules for dynamic, self-organizing networks.
-- **Attention Mechanism**: Adjust focus dynamically based on input relevance.
-- **Dropout Regularization**: Enhance generalization and prevent overfitting.
+### 2. Activation Functions
+
+The framework supports a variety of scalar activation functions essential for neural computations:
+
+- **ReLU, Sigmoid, Tanh, LeakyReLU, ELU, Linear**
+
+A mapping is maintained so that any neuron can dynamically select its activation function.
+
+### 3. Blueprint
+
+The **Blueprint** is the central structure representing an entire neural network. It holds:
+
+- **Neurons & QuantumNeurons:** Collections of standard and quantum-inspired neurons.
+- **InputNodes & OutputNodes:** IDs designating input and output neurons.
+- **ScalarActivationMap:** The available activation functions.
+
+It provides methods for initializing the network, performing forward propagation, applying activation functions, and retrieving outputs.
+
+### 4. Neuron Processing
+
+Neurons in PHASE come in various types, including but not limited to:
+
+- **Dense, RNN, LSTM, CNN, BatchNorm, Dropout, Attention, and Neuro-Cellular Automata (NCA) Neurons**
+
+Each type has specialized processing methods to handle its unique computations—from simple dense propagation to convolution and LSTM gating. Additional functionalities include:
+
+- **Dropout and Batch Normalization:** For regularization and stability.
+- **Attention Mechanisms:** To dynamically weigh inputs.
+- **Convolutional Operations:** For tasks like image processing.
+
+### 5. Mutations & Evolution
+
+PHASE supports dynamic evolution of network architectures via mutation functions that can:
+
+- Add or remove neurons.
+- Randomly mutate activation functions, biases, and connection weights.
+- Rewire connections between neurons.
+- Change neuron types on the fly.
+
+This evolutionary framework enables experimentation with emergent behaviors and species clustering based on blueprint similarity.
+
+### 6. Utilities
+
+A set of utility functions supports tasks like:
+
+- **Loading/Saving JSON Configurations:** Easily serialize or deserialize a network.
+- **Downloading Files and Unzipping:** For handling external resources.
+- **Softmax Implementation:** For normalizing output neuron values.
+- **Miscellaneous Math Helpers:** For operations like element-wise multiplication, summing slices, and safe square-root calculations.
+
+### 7. Species Clustering
+
+PHASE can compute a similarity percentage between blueprints and cluster them into species. This mechanism enables grouping of similar networks based on neuron parameters and connection patterns.
+
+---
 
 ## How It Works
 
-1. **Network Definition**: Use JSON to define neurons, connections, and configurations.
-2. **Dynamic Configuration**: Load JSON files to modify network structure without altering the source code.
-3. **Distributed Execution**: Divide networks into shards for efficient processing on multiple devices.
-4. **Evolution and Mutation**: Evolve network architecture by dynamically adding or modifying neurons and connections.
-5. **Emergent Behaviors**: Simulate interactions to observe adaptive or self-organizing phenomena.
+1. **Define Your Network:** Use JSON to define neurons, their connections, activation functions, and other configuration details.
+2. **Initialize PHASE:** Load the configuration into a new Blueprint instance. The framework initializes activation functions and sets up the network.
+3. **Run Inference:** Provide input data and run the forward propagation for a specified number of timesteps.
+4. **Benchmark & Evolve:** Use the built-in benchmarking functions to measure performance and apply mutation operators to evolve the network.
+5. **Observe Emergent Behavior:** Leverage species clustering and dynamic mutation to explore self-organizing and adaptive patterns.
+
+---
 
 ## Getting Started
 
-1. **Setup**: Install Go and set up a Go module for your project.
-2. **Define Network**: Create a JSON configuration with neuron definitions and connections.
-3. **Initialize Framework**: Load the configuration and initialize the network.
-4. **Run Inference**: Provide input data and run the network for the desired number of timesteps.
-5. **Utilize Outputs**: Retrieve outputs from the network’s output neurons.
-6. **Distributed Deployment**: Split layers into shards for deployment across multiple nodes or browsers.
+1. **Setup:** Install Go and initialize your Go module.
+2. **Configuration:** Create a JSON file that outlines your neural network’s architecture.
+3. **Initialization:** Load your JSON configuration into PHASE to build your Blueprint.
+4. **Execution:** Run inference using input data and monitor outputs.
+5. **Evolution & Benchmarking:** Use the provided mutation and benchmarking functions to evolve and optimize your network.
+6. **Deployment:** For scalable deployment, split your network into shards for distributed processing on clusters or in-browser via WebAssembly.
+
+---
 
 ## Future Work
 
-- **Reinforcement Learning Integration**: Enable reward-driven optimization of network architectures.
-- **Training Algorithms**: Implement backpropagation and gradient descent for supervised learning.
-- **Model Conversion**: Add support for converting pre-trained models to the framework’s architecture.
-- **Advanced Visualizations**: Provide tools for visualizing neuron interactions, sharding processes, and emergent behaviors.
+- **Reinforcement Learning:** Integrate reward-driven mechanisms to further evolve network architectures.
+- **Training Algorithms:** Implement backpropagation and gradient descent for supervised learning.
+- **Model Conversion Tools:** Develop utilities to convert pre-trained models into PHASE’s format.
+- **Advanced Visualization:** Build tools for real-time visualization of neuron interactions, mutations, and species clusters.
 
-## Contributing
+---
 
-Contributions are welcome. Please submit issues or pull requests to suggest improvements or report bugs.
 
 ## License
 
-This project is licensed under the Apache License 2.0.
+This project is licensed under the [Apache License 2.0](LICENSE).
