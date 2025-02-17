@@ -1,4 +1,4 @@
-package blueprint
+package phase
 
 import (
 	"fmt"
@@ -42,7 +42,7 @@ type EntanglementInfo struct {
 }
 
 // ProcessQuantumNeuron handles quantum operations
-func (bp *Blueprint) ProcessQuantumNeuron(neuron *QuantumNeuron) {
+func (bp *phase) ProcessQuantumNeuron(neuron *QuantumNeuron) {
 	// Check if the neuron is entangled
 	if len(neuron.Entanglements) > 0 {
 		for _, entanglement := range neuron.Entanglements {
@@ -146,7 +146,7 @@ func applyPauliXToSuperposition(state []complex128) []complex128 {
 }
 
 // applyCNOT applies the CNOT gate to entangle qubits.
-func (bp *Blueprint) applyCNOT(control *QuantumNeuron) {
+func (bp *phase) applyCNOT(control *QuantumNeuron) {
 	targetID := control.ID + 1 // Adjust as needed
 	target, exists := bp.QuantumNeurons[targetID]
 	if !exists {
@@ -192,7 +192,7 @@ func (bp *Blueprint) applyCNOT(control *QuantumNeuron) {
 }
 
 // measureQuantumState collapses the superposition based on quantum measurement postulates.
-func (bp *Blueprint) measureQuantumState(superposition []complex128) float64 {
+func (bp *phase) measureQuantumState(superposition []complex128) float64 {
 	probabilities := make([]float64, len(superposition))
 	for i, amp := range superposition {
 		probabilities[i] = cmplx.Abs(amp) * cmplx.Abs(amp)
@@ -212,7 +212,7 @@ func (bp *Blueprint) measureQuantumState(superposition []complex128) float64 {
 }
 
 // measureEntangledQubits simulates the measurement of entangled qubits with correlated outcomes.
-func (bp *Blueprint) measureEntangledQubits(q1, q2 *QuantumNeuron) {
+func (bp *phase) measureEntangledQubits(q1, q2 *QuantumNeuron) {
 	rnd := rand.Float64()
 	if rnd < 0.5 {
 		// Both qubits collapse to |0⟩
@@ -234,7 +234,7 @@ func (bp *Blueprint) measureEntangledQubits(q1, q2 *QuantumNeuron) {
 }
 
 // createBellState entangles two qubits into a Bell state.
-func (bp *Blueprint) createBellState(q1, q2 *QuantumNeuron) {
+func (bp *phase) createBellState(q1, q2 *QuantumNeuron) {
 	// Indicate that the qubits are entangled
 	q1.IsEntangled = true
 	q2.IsEntangled = true
@@ -243,7 +243,7 @@ func (bp *Blueprint) createBellState(q1, q2 *QuantumNeuron) {
 }
 
 // createGHZState creates a GHZ state among multiple qubits.
-func (bp *Blueprint) createGHZState(neurons ...*QuantumNeuron) {
+func (bp *phase) createGHZState(neurons ...*QuantumNeuron) {
 	amplitude := complex(1/math.Sqrt(2), 0)
 	for _, neuron := range neurons {
 		neuron.Superposition = []complex128{amplitude, 0}

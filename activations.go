@@ -1,4 +1,4 @@
-package blueprint
+package phase
 
 import "math"
 
@@ -57,6 +57,6 @@ func InitializeActivationFunctions() map[string]ActivationFunc {
 }
 
 // InitializeActivationFunctions initializes the ScalarActivationMap
-func (bp *Blueprint) InitializeActivationFunctions() {
+func (bp *phase) InitializeActivationFunctions() {
 	bp.ScalarActivationMap = InitializeActivationFunctions()
 }

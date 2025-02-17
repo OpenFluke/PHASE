@@ -1,4 +1,4 @@
-module blueprint
+module phase
 
 go 1.23.3
 

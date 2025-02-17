@@ -1,4 +1,4 @@
-package blueprint
+package phase
 
 import (
 	"compress/gzip"
@@ -34,7 +34,7 @@ func Softmax(inputs []float64) []float64 {
 }
 
 // LoadNeurons loads neurons from a JSON string
-func (bp *Blueprint) LoadNeurons(jsonData string) error {
+func (bp *phase) LoadNeurons(jsonData string) error {
 
 	var rawNeurons []json.RawMessage
 	if err := json.Unmarshal([]byte(jsonData), &rawNeurons); err != nil {
@@ -139,12 +139,12 @@ func (bp *Blueprint) LoadNeurons(jsonData string) error {
 	return nil
 }
 
-// SaveToJSON saves the current Blueprint to a specified JSON file.
-func (bp *Blueprint) SaveToJSON(fileName string) error {
-	// Serialize the Blueprint to JSON
+// SaveToJSON saves the current phase to a specified JSON file.
+func (bp *phase) SaveToJSON(fileName string) error {
+	// Serialize the phase to JSON
 	data, err := json.MarshalIndent(bp, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to serialize Blueprint to JSON: %v", err)
+		return fmt.Errorf("failed to serialize phase to JSON: %v", err)
 	}
 
 	// Write the JSON data to the specified file
@@ -153,12 +153,12 @@ func (bp *Blueprint) SaveToJSON(fileName string) error {
 		return fmt.Errorf("failed to write JSON to file '%s': %v", fileName, err)
 	}
 
-	fmt.Printf("Blueprint saved successfully to '%s'\n", fileName)
+	fmt.Printf("phase saved successfully to '%s'\n", fileName)
 	return nil
 }
 
 // DownloadFile downloads a file from a URL and saves it locally.
-func (bp *Blueprint) DownloadFile(filepath string, url string) error {
+func (bp *phase) DownloadFile(filepath string, url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to download file: %w", err)
@@ -183,7 +183,7 @@ func (bp *Blueprint) DownloadFile(filepath string, url string) error {
 }
 
 // UnzipFile unzips a .gz file into the specified target directory.
-func (bp *Blueprint) UnzipFile(gzFile string, targetDir string) error {
+func (bp *phase) UnzipFile(gzFile string, targetDir string) error {
 	// Open the .gz file
 	in, err := os.Open(gzFile)
 	if err != nil {
@@ -216,8 +216,8 @@ func (bp *Blueprint) UnzipFile(gzFile string, targetDir string) error {
 	return nil
 }
 
-// ToJSON serializes the Blueprint to a JSON string.
-func (bp *Blueprint) SerializeToJSON() (string, error) {
+// ToJSON serializes the phase to a JSON string.
+func (bp *phase) SerializeToJSON() (string, error) {
 	data, err := json.Marshal(bp)
 	if err != nil {
 		return "", err
@@ -225,13 +225,13 @@ func (bp *Blueprint) SerializeToJSON() (string, error) {
 	return string(data), nil
 }
 
-// FromJSON deserializes the Blueprint from a JSON string.
-func (bp *Blueprint) DeserializesFromJSON(data string) error {
+// FromJSON deserializes the phase from a JSON string.
+func (bp *phase) DeserializesFromJSON(data string) error {
 	return json.Unmarshal([]byte(data), bp)
 }
 
-// getAllNeuronIDs retrieves the IDs of all neurons in the blueprint.
-func (bp *Blueprint) getAllNeuronIDs() []int {
+// getAllNeuronIDs retrieves the IDs of all neurons in the phase.
+func (bp *phase) getAllNeuronIDs() []int {
 	neuronIDs := []int{}
 	for id := range bp.Neurons {
 		neuronIDs = append(neuronIDs, id)
@@ -241,7 +241,7 @@ func (bp *Blueprint) getAllNeuronIDs() []int {
 
 // getRandomConnectionPair selects a random valid source and target neuron IDs for adding a connection.
 // Returns -1, -1 if no valid pair is found.
-func (bp *Blueprint) getRandomConnectionPair() (int, int) {
+func (bp *phase) getRandomConnectionPair() (int, int) {
 	neuronIDs := bp.getAllNeuronIDs()
 	if len(neuronIDs) < 2 {
 		return -1, -1
@@ -271,7 +271,7 @@ func getMaxFloat() float64 {
 	return math.MaxFloat64
 }
 
-func (bp *Blueprint) ValidateConnections() bool {
+func (bp *phase) ValidateConnections() bool {
 	visited := map[int]bool{}
 	var dfs func(int)
 	dfs = func(id int) {
@@ -295,7 +295,7 @@ func (bp *Blueprint) ValidateConnections() bool {
 	return true
 }
 
-func (bp *Blueprint) connectionExists(sourceID, targetID int) bool {
+func (bp *phase) connectionExists(sourceID, targetID int) bool {
 	targetNeuron, ok := bp.Neurons[targetID]
 	if !ok {
 		return false

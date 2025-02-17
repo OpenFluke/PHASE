@@ -1,4 +1,4 @@
-package blueprint
+package phase
 
 import (
 	"encoding/json"
@@ -18,11 +18,11 @@ type ParameterInfo struct {
 	Type string `json:"type"`
 }
 
-// GetBlueprintMethodsJSON returns a JSON string containing all methods attached to the Blueprint struct,
+// GetphaseMethodsJSON returns a JSON string containing all methods attached to the phase struct,
 // including each method's parameters and their types.
-func (bp *Blueprint) GetBlueprintMethodsJSON() (string, error) {
+func (bp *phase) GetphaseMethodsJSON() (string, error) {
 	// Retrieve all methods and their metadata
-	methods, err := bp.GetBlueprintMethods()
+	methods, err := bp.GetphaseMethods()
 	if err != nil {
 		return "", fmt.Errorf("failed to retrieve methods: %w", err)
 	}
@@ -36,11 +36,11 @@ func (bp *Blueprint) GetBlueprintMethodsJSON() (string, error) {
 	return string(data), nil
 }
 
-// GetBlueprintMethods retrieves all methods of the Blueprint struct, including their names, parameters, and types.
-func (bp *Blueprint) GetBlueprintMethods() ([]MethodInfo, error) {
+// GetphaseMethods retrieves all methods of the phase struct, including their names, parameters, and types.
+func (bp *phase) GetphaseMethods() ([]MethodInfo, error) {
 	var methods []MethodInfo
 
-	// Use reflection to inspect the Blueprint's methods
+	// Use reflection to inspect the phase's methods
 	bpType := reflect.TypeOf(bp)
 	for i := 0; i < bpType.NumMethod(); i++ {
 		method := bpType.Method(i)

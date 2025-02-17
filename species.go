@@ -1,14 +1,14 @@
-package blueprint
+package phase
 
 import (
 	"fmt"
 	"math"
 )
 
-// BlueprintSimilarity computes a similarity percentage (0–100) between two blueprints.
+// phaseSimilarity computes a similarity percentage (0–100) between two phases.
 // It compares neurons that have the same ID by looking at the bias and connection weights.
-// A value of 100 means the blueprints are identical in the compared parameters.
-func BlueprintSimilarity(bp1, bp2 *Blueprint) float64 {
+// A value of 100 means the phases are identical in the compared parameters.
+func phaseSimilarity(bp1, bp2 *phase) float64 {
 	totalSim := 0.0
 	count := 0.0
 
@@ -91,18 +91,18 @@ func BlueprintSimilarity(bp1, bp2 *Blueprint) float64 {
 	return finalSim * 100.0 // Scale to a percentage (0–100).
 }
 
-// ClusterBlueprintsBySpecies groups blueprints into species based on a similarity threshold percentage.
-// Two blueprints are considered similar (and thus in the same species) if their similarity is
+// ClusterphasesBySpecies groups phases into species based on a similarity threshold percentage.
+// Two phases are considered similar (and thus in the same species) if their similarity is
 // greater than or equal to similarityThreshold. The function returns a map where the key is a species ID
-// and the value is a slice of blueprint IDs belonging to that species.
-func ClusterBlueprintsBySpecies(blueprints map[int]*Blueprint, similarityThreshold float64) map[int][]int {
-	// Initialize union-find structure: each blueprint starts in its own set.
+// and the value is a slice of phase IDs belonging to that species.
+func ClusterphasesBySpecies(phases map[int]*phase, similarityThreshold float64) map[int][]int {
+	// Initialize union-find structure: each phase starts in its own set.
 	parent := make(map[int]int)
-	for id := range blueprints {
+	for id := range phases {
 		parent[id] = id
 	}
 
-	// find returns the representative (root) for a given blueprint ID.
+	// find returns the representative (root) for a given phase ID.
 	var find func(int) int
 	find = func(x int) int {
 		if parent[x] != x {
@@ -111,7 +111,7 @@ func ClusterBlueprintsBySpecies(blueprints map[int]*Blueprint, similarityThresho
 		return parent[x]
 	}
 
-	// union merges the sets for blueprint IDs x and y.
+	// union merges the sets for phase IDs x and y.
 	union := func(x, y int) {
 		rootX := find(x)
 		rootY := find(y)
@@ -120,21 +120,21 @@ func ClusterBlueprintsBySpecies(blueprints map[int]*Blueprint, similarityThresho
 		}
 	}
 
-	// Get a slice of all blueprint IDs.
+	// Get a slice of all phase IDs.
 	ids := []int{}
-	for id := range blueprints {
+	for id := range phases {
 		ids = append(ids, id)
 	}
 
-	// Compare every pair of blueprints.
+	// Compare every pair of phases.
 	for i := 0; i < len(ids); i++ {
 		for j := i + 1; j < len(ids); j++ {
-			similarity := BlueprintSimilarity(blueprints[ids[i]], blueprints[ids[j]])
+			similarity := phaseSimilarity(phases[ids[i]], phases[ids[j]])
 			if similarity >= similarityThreshold {
-				// If the similarity is above the threshold, merge the two blueprints into the same set.
+				// If the similarity is above the threshold, merge the two phases into the same set.
 				union(ids[i], ids[j])
-				if blueprints[ids[i]].Debug {
-					fmt.Printf("Blueprint %d and Blueprint %d are similar (%.2f%%) and have been clustered together.\n", ids[i], ids[j], similarity)
+				if phases[ids[i]].Debug {
+					fmt.Printf("phase %d and phase %d are similar (%.2f%%) and have been clustered together.\n", ids[i], ids[j], similarity)
 				}
 			}
 		}
