@@ -6,7 +6,7 @@ import (
 )
 
 // Possible neuron types for mutation
-var neuronTypes = []string{"dense", "rnn", "lstm", "cnn", "batch_norm", "dropout", "nca"}
+var neuronTypes = []string{"dense", "rnn", "lstm", "cnn", "batch_norm", "dropout"}
 
 // Possible activation functions
 var possibleActivations = []string{"relu", "sigmoid", "tanh", "leaky_relu", "elu", "linear"}
@@ -131,4 +131,92 @@ func (bp *Phase) GetNextNeuronID() int {
 		}
 	}
 	return maxID + 1
+}
+
+// AddConnection adds a new connection between two random neurons.
+func (bp *Phase) AddConnection() {
+	sourceID, targetID := bp.getRandomConnectionPair()
+	if sourceID == -1 || targetID == -1 {
+		return
+	}
+	weight := rand.NormFloat64() * 0.1
+	bp.Neurons[targetID].Connections = append(bp.Neurons[targetID].Connections, []float64{float64(sourceID), weight})
+	if bp.Debug {
+		fmt.Printf("Added connection from Neuron %d to Neuron %d (weight=%f)\n", sourceID, targetID, weight)
+	}
+}
+
+// RemoveConnection removes a random connection from a random neuron.
+func (bp *Phase) RemoveConnection() {
+	neuronIDs := bp.getAllNeuronIDs()
+	if len(neuronIDs) == 0 {
+		return
+	}
+	neuronID := neuronIDs[rand.Intn(len(neuronIDs))]
+	neuron := bp.Neurons[neuronID]
+	if len(neuron.Connections) == 0 {
+		return
+	}
+	connIndex := rand.Intn(len(neuron.Connections))
+	removedConn := neuron.Connections[connIndex]
+	neuron.Connections = append(neuron.Connections[:connIndex], neuron.Connections[connIndex+1:]...)
+	if bp.Debug {
+		fmt.Printf("Removed connection from Neuron %d to Neuron %d\n", int(removedConn[0]), neuronID)
+	}
+}
+
+// AdjustWeights modifies the weights of a random neuron's connections.
+func (bp *Phase) AdjustWeights() {
+	neuronIDs := bp.getAllNeuronIDs()
+	if len(neuronIDs) == 0 {
+		return
+	}
+	neuronID := neuronIDs[rand.Intn(len(neuronIDs))]
+	neuron := bp.Neurons[neuronID]
+	if len(neuron.Connections) == 0 {
+		return
+	}
+	for i := range neuron.Connections {
+		adjustment := rand.NormFloat64() * 0.05
+		neuron.Connections[i][1] += adjustment
+	}
+	if bp.Debug {
+		fmt.Printf("Adjusted weights for Neuron %d\n", neuronID)
+	}
+}
+
+// AdjustBiases modifies the bias of a random neuron.
+func (bp *Phase) AdjustBiases() {
+	neuronIDs := bp.getAllNeuronIDs()
+	if len(neuronIDs) == 0 {
+		return
+	}
+	neuronID := neuronIDs[rand.Intn(len(neuronIDs))]
+	neuron := bp.Neurons[neuronID]
+	adjustment := rand.NormFloat64() * 0.05
+	neuron.Bias += adjustment
+	if bp.Debug {
+		fmt.Printf("Adjusted bias for Neuron %d by %f\n", neuronID, adjustment)
+	}
+}
+
+// ChangeActivationFunction changes the activation function of a random non-output neuron.
+func (bp *Phase) ChangeActivationFunction() {
+	nonOutputNeurons := []int{}
+	for id := range bp.Neurons {
+		if !contains(bp.OutputNodes, id) {
+			nonOutputNeurons = append(nonOutputNeurons, id)
+		}
+	}
+	if len(nonOutputNeurons) == 0 {
+		return
+	}
+	neuronID := nonOutputNeurons[rand.Intn(len(nonOutputNeurons))]
+	neuron := bp.Neurons[neuronID]
+	possibleActivations := []string{"relu", "sigmoid", "tanh", "leaky_relu", "elu", "linear"}
+	newAct := possibleActivations[rand.Intn(len(possibleActivations))]
+	neuron.Activation = newAct
+	if bp.Debug {
+		fmt.Printf("Changed activation function of Neuron %d to %s\n", neuronID, newAct)
+	}
 }

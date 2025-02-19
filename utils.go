@@ -307,3 +307,56 @@ func (bp *Phase) connectionExists(sourceID, targetID int) bool {
 	}
 	return false
 }
+
+// contains checks if a slice contains a value.
+func contains(slice []int, val int) bool {
+	for _, v := range slice {
+		if v == val {
+			return true
+		}
+	}
+	return false
+}
+
+// MarshalJSON customizes JSON serialization to handle NaN values.
+func (p *Phase) MarshalJSON() ([]byte, error) {
+	type Alias Phase
+	aux := &struct {
+		*Alias
+		Neurons map[int]*Neuron `json:"neurons"`
+	}{
+		Alias:   (*Alias)(p),
+		Neurons: make(map[int]*Neuron),
+	}
+
+	// Copy neurons and replace NaN values
+	for id, neuron := range p.Neurons {
+		newNeuron := &Neuron{
+			ID:          neuron.ID,
+			Type:        neuron.Type,
+			Value:       replaceNaN(neuron.Value),
+			Bias:        replaceNaN(neuron.Bias),
+			Activation:  neuron.Activation,
+			CellState:   replaceNaN(neuron.CellState),
+			GateWeights: neuron.GateWeights,
+		}
+
+		// Copy connections and replace NaN in weights
+		newNeuron.Connections = make([][]float64, len(neuron.Connections))
+		for i, conn := range neuron.Connections {
+			newNeuron.Connections[i] = []float64{conn[0], replaceNaN(conn[1])}
+		}
+
+		aux.Neurons[id] = newNeuron
+	}
+
+	return json.Marshal(aux)
+}
+
+// replaceNaN replaces NaN with 0 to ensure valid JSON.
+func replaceNaN(value float64) float64 {
+	if math.IsNaN(value) {
+		return 0
+	}
+	return value
+}

@@ -98,9 +98,12 @@ func (bp *Phase) ProcessRNNNeuron(neuron *Neuron, inputs []float64) {
 	}
 }
 
-// ProcessLSTMNeuron updates an LSTM neuron with gating
+// ProcessLSTMNeuron updates an LSTM neuron with gating.
 func (bp *Phase) ProcessLSTMNeuron(neuron *Neuron, inputs []float64) {
-	// Standard LSTM cell implementation with weights
+	if neuron.Type != "lstm" {
+		return
+	}
+
 	var (
 		inputGate  float64
 		forgetGate float64
@@ -110,15 +113,36 @@ func (bp *Phase) ProcessLSTMNeuron(neuron *Neuron, inputs []float64) {
 
 	weights := neuron.GateWeights
 	inputSize := len(inputs)
+	weightSize := len(weights["input"])
 
-	// Compute gates with weights
-	for i := 0; i < inputSize; i++ {
+	// Handle empty or mismatched inputs/weights
+	if inputSize == 0 || weightSize == 0 {
+		neuron.Value = 0
+		neuron.CellState = 0
+		if bp.Debug {
+			fmt.Printf("LSTM Neuron %d: Empty inputs or weights, resetting to 0\n", neuron.ID)
+		}
+		return
+	}
+
+	// Use the smaller of inputSize and weightSize to avoid index errors
+	safeSize := inputSize
+	if weightSize < safeSize {
+		safeSize = weightSize
+		if bp.Debug {
+			fmt.Printf("Warning: Weight size (%d) less than input size (%d), clamping to %d\n", weightSize, inputSize, safeSize)
+		}
+	}
+
+	// Compute gates
+	for i := 0; i < safeSize; i++ {
 		inputGate += inputs[i] * weights["input"][i]
 		forgetGate += inputs[i] * weights["forget"][i]
 		outputGate += inputs[i] * weights["output"][i]
 		cellInput += inputs[i] * weights["cell"][i]
 	}
 
+	// Apply activation functions and bias
 	inputGate = Sigmoid(inputGate + neuron.Bias)
 	forgetGate = Sigmoid(forgetGate + neuron.Bias)
 	outputGate = Sigmoid(outputGate + neuron.Bias)
@@ -127,6 +151,11 @@ func (bp *Phase) ProcessLSTMNeuron(neuron *Neuron, inputs []float64) {
 	// Update cell state and output
 	neuron.CellState = neuron.CellState*forgetGate + cellInput*inputGate
 	neuron.Value = Tanh(neuron.CellState) * outputGate
+
+	// Replace NaN in final values
+	neuron.CellState = replaceNaN(neuron.CellState)
+	neuron.Value = replaceNaN(neuron.Value)
+
 	if bp.Debug {
 		fmt.Printf("LSTM Neuron %d: Value=%f, CellState=%f\n", neuron.ID, neuron.Value, neuron.CellState)
 	}
