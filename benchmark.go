@@ -8,7 +8,7 @@ import (
 )
 
 // RunBenchmark initializes and runs the floating-point operation benchmarks for the AI framework.
-func (bp *phase) RunBenchmark(duration time.Duration) (string, string, string, string, string, string, string, string) {
+func (bp *Phase) RunBenchmark(duration time.Duration) (string, string, string, string, string, string, string, string) {
 	ops32Single := bp.runSingleThreadedBenchmark(true, duration) / int(duration.Seconds())
 	ops64Single := bp.runSingleThreadedBenchmark(false, duration) / int(duration.Seconds())
 	formattedOps32Single := bp.FormatNumber(ops32Single)
@@ -26,7 +26,7 @@ func (bp *phase) RunBenchmark(duration time.Duration) (string, string, string, s
 }
 
 // runSingleThreadedBenchmark performs a single-threaded benchmark on float32 or float64 operations.
-func (bp *phase) runSingleThreadedBenchmark(isFloat32 bool, duration time.Duration) int {
+func (bp *Phase) runSingleThreadedBenchmark(isFloat32 bool, duration time.Duration) int {
 	startTime := time.Now()
 	ops := 0
 	for time.Since(startTime) < duration {
@@ -40,7 +40,7 @@ func (bp *phase) runSingleThreadedBenchmark(isFloat32 bool, duration time.Durati
 }
 
 // runMultiThreadedBenchmark performs a multi-threaded benchmark on float32 or float64 operations.
-func (bp *phase) runMultiThreadedBenchmark(isFloat32 bool, duration time.Duration) int {
+func (bp *Phase) runMultiThreadedBenchmark(isFloat32 bool, duration time.Duration) int {
 	numCores := runtime.NumCPU()
 	var wg sync.WaitGroup
 	opsChan := make(chan int, numCores)
@@ -64,7 +64,7 @@ func (bp *phase) runMultiThreadedBenchmark(isFloat32 bool, duration time.Duratio
 }
 
 // workerBenchmark performs operations for the multi-threaded benchmark.
-func (bp *phase) workerBenchmark(opFunc func(int) int, opsChan chan int, wg *sync.WaitGroup, duration time.Duration) {
+func (bp *Phase) workerBenchmark(opFunc func(int) int, opsChan chan int, wg *sync.WaitGroup, duration time.Duration) {
 	defer wg.Done()
 	startTime := time.Now()
 	ops := 0
@@ -75,7 +75,7 @@ func (bp *phase) workerBenchmark(opFunc func(int) int, opsChan chan int, wg *syn
 }
 
 // PerformFloat32Ops runs float32 multiply-add operations for benchmarking, returning the operation count.
-func (bp *phase) PerformFloat32Ops(count int) int {
+func (bp *Phase) PerformFloat32Ops(count int) int {
 	var a, b float32 = 1.1, 2.2
 	var ops int
 	for i := 0; i < count; i++ {
@@ -87,7 +87,7 @@ func (bp *phase) PerformFloat32Ops(count int) int {
 }
 
 // PerformFloat64Ops runs float64 multiply-add operations for benchmarking, returning the operation count.
-func (bp *phase) PerformFloat64Ops(count int) int {
+func (bp *Phase) PerformFloat64Ops(count int) int {
 	var a, b float64 = 1.1, 2.2
 	var ops int
 	for i := 0; i < count; i++ {
@@ -99,7 +99,7 @@ func (bp *phase) PerformFloat64Ops(count int) int {
 }
 
 // EstimateMaxLayersAndNodes estimates the maximum number of layers and nodes for a neural network based on operation count.
-func (bp *phase) EstimateMaxLayersAndNodes(ops32, ops64 int) (string, string) {
+func (bp *Phase) EstimateMaxLayersAndNodes(ops32, ops64 int) (string, string) {
 	const nodesPerLayer = 1000
 	maxLayers32 := ops32 / (nodesPerLayer * nodesPerLayer)
 	maxLayers64 := ops64 / (nodesPerLayer * nodesPerLayer)
@@ -108,7 +108,7 @@ func (bp *phase) EstimateMaxLayersAndNodes(ops32, ops64 int) (string, string) {
 }
 
 // FormatNumber formats large numbers into human-readable format with suffixes.
-func (bp *phase) FormatNumber(num int) string {
+func (bp *Phase) FormatNumber(num int) string {
 	switch {
 	case float64(num) >= 1e12:
 		return fmt.Sprintf("%.2f Trillion", float64(num)/1e12)

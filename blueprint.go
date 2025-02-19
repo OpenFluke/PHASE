@@ -5,8 +5,8 @@ import (
 	"math/rand"
 )
 
-// phase encapsulates the entire neural network
-type phase struct {
+// Phase encapsulates the entire neural network
+type Phase struct {
 	Neurons             map[int]*Neuron           `json:"neurons"`
 	QuantumNeurons      map[int]*QuantumNeuron    `json:"quant"`
 	InputNodes          []int                     `json:"input_nodes"`
@@ -74,9 +74,9 @@ type ModelMetadata struct {
 	EstimatedComputeTime string `json:"estimatedComputeTime,omitempty"` // Estimated compute time for typical runs
 }
 
-// Newphase creates and initializes a new phase
-func Newphase() *phase {
-	bp := &phase{
+// NewPhase creates and initializes a new Phase
+func NewPhase() *Phase {
+	bp := &Phase{
 		Neurons:             make(map[int]*Neuron),
 		InputNodes:          []int{},
 		QuantumNeurons:      make(map[int]*QuantumNeuron),
@@ -87,10 +87,10 @@ func Newphase() *phase {
 	return bp
 }
 
-// phase.go
+// Phase.go
 
 // RandomWeights generates random weights for connections
-func (bp *phase) RandomWeights(size int) []float64 {
+func (bp *Phase) RandomWeights(size int) []float64 {
 	weights := make([]float64, size)
 	for i := range weights {
 		weights[i] = rand.NormFloat64() * 0.5 // Increase scale
@@ -99,17 +99,17 @@ func (bp *phase) RandomWeights(size int) []float64 {
 }
 
 // AddInputNodes adds multiple input nodes to the network
-func (bp *phase) AddInputNodes(ids []int) {
+func (bp *Phase) AddInputNodes(ids []int) {
 	bp.InputNodes = append(bp.InputNodes, ids...)
 }
 
 // AddOutputNodes adds multiple output nodes to the network
-func (bp *phase) AddOutputNodes(ids []int) {
+func (bp *Phase) AddOutputNodes(ids []int) {
 	bp.OutputNodes = append(bp.OutputNodes, ids...)
 }
 
 // ApplyScalarActivation applies the specified scalar activation function
-func (bp *phase) ApplyScalarActivation(value float64, activation string) float64 {
+func (bp *Phase) ApplyScalarActivation(value float64, activation string) float64 {
 	if actFunc, exists := bp.ScalarActivationMap[activation]; exists {
 		return actFunc(value)
 	}
@@ -122,7 +122,7 @@ func (bp *phase) ApplyScalarActivation(value float64, activation string) float64
 
 // Forward propagates inputs through the network
 // Forward propagates inputs through the network
-func (bp *phase) Forward(inputs map[int]float64, timesteps int) {
+func (bp *Phase) Forward(inputs map[int]float64, timesteps int) {
 	// Set input neurons
 	for id, value := range inputs {
 		if neuron, exists := bp.Neurons[id]; exists {
@@ -166,7 +166,7 @@ func (bp *phase) Forward(inputs map[int]float64, timesteps int) {
 }
 
 // RunNetwork runs the neural network with given inputs and timesteps
-func (bp *phase) RunNetwork(inputs map[int]float64, timesteps int) {
+func (bp *Phase) RunNetwork(inputs map[int]float64, timesteps int) {
 	bp.Forward(inputs, timesteps)
 	if bp.Debug {
 		outputs := bp.GetOutputs()
@@ -178,7 +178,7 @@ func (bp *phase) RunNetwork(inputs map[int]float64, timesteps int) {
 }
 
 // GetOutputs retrieves the output values from the network
-func (bp *phase) GetOutputs() map[int]float64 {
+func (bp *Phase) GetOutputs() map[int]float64 {
 	outputs := make(map[int]float64)
 	for _, id := range bp.OutputNodes {
 		if neuron, exists := bp.Neurons[id]; exists {

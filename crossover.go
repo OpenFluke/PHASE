@@ -2,9 +2,9 @@ package phase
 
 import "math/rand"
 
-// crossoverphases merges two parent phases to create an offspring phase.
-func crossoverphases(parentA, parentB *phase) *phase {
-	offspring := Newphase()
+// crossoverPhases merges two parent Phases to create an offspring Phase.
+func crossoverPhases(parentA, parentB *Phase) *Phase {
+	offspring := NewPhase()
 
 	// 1. Merge Neurons (Random Selection from Both Parents)
 	for id, neuronA := range parentA.Neurons {
@@ -42,7 +42,7 @@ func selectNeuron(neuronA, neuronB *Neuron) *Neuron {
 }
 
 // mergeNeuronConnections merges neuron connections from both parents.
-func mergeNeuronConnections(offspring, parentA, parentB *phase) {
+func mergeNeuronConnections(offspring, parentA, parentB *Phase) {
 	for id, neuron := range offspring.Neurons {
 		if parentA.Neurons[id] != nil && parentB.Neurons[id] != nil {
 			for i := range neuron.Connections {
@@ -57,7 +57,7 @@ func mergeNeuronConnections(offspring, parentA, parentB *phase) {
 }
 
 // applyActivationCrossover selects the activation function from either parent.
-func applyActivationCrossover(offspring, parentA, parentB *phase) {
+func applyActivationCrossover(offspring, parentA, parentB *Phase) {
 	for id, neuron := range offspring.Neurons {
 		if parentA.Neurons[id] != nil && parentB.Neurons[id] != nil {
 			neuron.Activation = selectActivation(parentA.Neurons[id].Activation, parentB.Neurons[id].Activation)
@@ -73,8 +73,8 @@ func selectActivation(activationA, activationB string) string {
 	return activationB
 }
 
-// ensureOutputNeurons ensures that all output neurons exist in the offspring phase.
-func ensureOutputNeurons(offspring *phase, outputNodes []int) {
+// ensureOutputNeurons ensures that all output neurons exist in the offspring Phase.
+func ensureOutputNeurons(offspring *Phase, outputNodes []int) {
 	for _, outputID := range outputNodes {
 		if _, exists := offspring.Neurons[outputID]; !exists {
 			offspring.Neurons[outputID] = &Neuron{

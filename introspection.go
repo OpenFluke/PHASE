@@ -20,7 +20,7 @@ type ParameterInfo struct {
 
 // GetphaseMethodsJSON returns a JSON string containing all methods attached to the phase struct,
 // including each method's parameters and their types.
-func (bp *phase) GetphaseMethodsJSON() (string, error) {
+func (bp *Phase) GetphaseMethodsJSON() (string, error) {
 	// Retrieve all methods and their metadata
 	methods, err := bp.GetphaseMethods()
 	if err != nil {
@@ -37,7 +37,7 @@ func (bp *phase) GetphaseMethodsJSON() (string, error) {
 }
 
 // GetphaseMethods retrieves all methods of the phase struct, including their names, parameters, and types.
-func (bp *phase) GetphaseMethods() ([]MethodInfo, error) {
+func (bp *Phase) GetphaseMethods() ([]MethodInfo, error) {
 	var methods []MethodInfo
 
 	// Use reflection to inspect the phase's methods

@@ -5,10 +5,10 @@ import (
 	"math"
 )
 
-// phaseSimilarity computes a similarity percentage (0–100) between two phases.
+// PhaseSimilarity computes a similarity percentage (0–100) between two Phases.
 // It compares neurons that have the same ID by looking at the bias and connection weights.
-// A value of 100 means the phases are identical in the compared parameters.
-func phaseSimilarity(bp1, bp2 *phase) float64 {
+// A value of 100 means the Phases are identical in the compared parameters.
+func PhaseSimilarity(bp1, bp2 *Phase) float64 {
 	totalSim := 0.0
 	count := 0.0
 
@@ -91,18 +91,18 @@ func phaseSimilarity(bp1, bp2 *phase) float64 {
 	return finalSim * 100.0 // Scale to a percentage (0–100).
 }
 
-// ClusterphasesBySpecies groups phases into species based on a similarity threshold percentage.
-// Two phases are considered similar (and thus in the same species) if their similarity is
+// ClusterPhasesBySpecies groups Phases into species based on a similarity threshold percentage.
+// Two Phases are considered similar (and thus in the same species) if their similarity is
 // greater than or equal to similarityThreshold. The function returns a map where the key is a species ID
-// and the value is a slice of phase IDs belonging to that species.
-func ClusterphasesBySpecies(phases map[int]*phase, similarityThreshold float64) map[int][]int {
-	// Initialize union-find structure: each phase starts in its own set.
+// and the value is a slice of Phase IDs belonging to that species.
+func ClusterPhasesBySpecies(Phases map[int]*Phase, similarityThreshold float64) map[int][]int {
+	// Initialize union-find structure: each Phase starts in its own set.
 	parent := make(map[int]int)
-	for id := range phases {
+	for id := range Phases {
 		parent[id] = id
 	}
 
-	// find returns the representative (root) for a given phase ID.
+	// find returns the representative (root) for a given Phase ID.
 	var find func(int) int
 	find = func(x int) int {
 		if parent[x] != x {
@@ -111,7 +111,7 @@ func ClusterphasesBySpecies(phases map[int]*phase, similarityThreshold float64) 
 		return parent[x]
 	}
 
-	// union merges the sets for phase IDs x and y.
+	// union merges the sets for Phase IDs x and y.
 	union := func(x, y int) {
 		rootX := find(x)
 		rootY := find(y)
@@ -120,21 +120,21 @@ func ClusterphasesBySpecies(phases map[int]*phase, similarityThreshold float64) 
 		}
 	}
 
-	// Get a slice of all phase IDs.
+	// Get a slice of all Phase IDs.
 	ids := []int{}
-	for id := range phases {
+	for id := range Phases {
 		ids = append(ids, id)
 	}
 
-	// Compare every pair of phases.
+	// Compare every pair of Phases.
 	for i := 0; i < len(ids); i++ {
 		for j := i + 1; j < len(ids); j++ {
-			similarity := phaseSimilarity(phases[ids[i]], phases[ids[j]])
+			similarity := PhaseSimilarity(Phases[ids[i]], Phases[ids[j]])
 			if similarity >= similarityThreshold {
-				// If the similarity is above the threshold, merge the two phases into the same set.
+				// If the similarity is above the threshold, merge the two Phases into the same set.
 				union(ids[i], ids[j])
-				if phases[ids[i]].Debug {
-					fmt.Printf("phase %d and phase %d are similar (%.2f%%) and have been clustered together.\n", ids[i], ids[j], similarity)
+				if Phases[ids[i]].Debug {
+					fmt.Printf("Phase %d and Phase %d are similar (%.2f%%) and have been clustered together.\n", ids[i], ids[j], similarity)
 				}
 			}
 		}

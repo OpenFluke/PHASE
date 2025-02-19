@@ -11,9 +11,9 @@ var neuronTypes = []string{"dense", "rnn", "lstm", "cnn", "batch_norm", "dropout
 // Possible activation functions
 var possibleActivations = []string{"relu", "sigmoid", "tanh", "leaky_relu", "elu", "linear"}
 
-// AddRandomNeuron adds a new neuron of the given type (or random type if empty) to the phase.
+// AddRandomNeuron adds a new neuron of the given type (or random type if empty) to the Phase.
 // It creates random connections from existing neurons, sets a random bias, and chooses an activation if needed.
-func (bp *phase) AddRandomNeuron(neuronType string, activation string, minConnections, maxConnections int) *Neuron {
+func (bp *Phase) AddRandomNeuron(neuronType string, activation string, minConnections, maxConnections int) *Neuron {
 	// If neuronType is not provided, pick a random type
 	if neuronType == "" {
 		neuronType = neuronTypes[rand.Intn(len(neuronTypes))]
@@ -91,7 +91,7 @@ func (bp *phase) AddRandomNeuron(neuronType string, activation string, minConnec
 		}
 	}
 
-	// Add neuron to phase
+	// Add neuron to Phase
 	bp.Neurons[newID] = newNeuron
 
 	return newNeuron
@@ -101,7 +101,7 @@ func (bp *phase) AddRandomNeuron(neuronType string, activation string, minConnec
 // One approach: connect the new neuron to all existing output neurons,
 // so that their value now depends also on the new neuron.
 // Optionally, you can remove some existing direct connections to outputs to force dependency.
-func (bp *phase) RewireOutputsThroughNewNeuron(newNeuronID int) {
+func (bp *Phase) RewireOutputsThroughNewNeuron(newNeuronID int) {
 	for _, outID := range bp.OutputNodes {
 		// Before adding a connection, ensure it doesn't already exist
 		if !bp.connectionExists(newNeuronID, outID) {
@@ -118,7 +118,7 @@ func (bp *phase) RewireOutputsThroughNewNeuron(newNeuronID int) {
 
 // GetNextNeuronID finds the highest ID and increments it
 // Rename to start with a capital letter to export it
-func (bp *phase) GetNextNeuronID() int {
+func (bp *Phase) GetNextNeuronID() int {
 	maxID := 0
 	for id := range bp.Neurons {
 		if id > maxID {

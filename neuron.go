@@ -41,7 +41,7 @@ type Neuron struct {
 }
 
 // ProcessNeuron processes a single neuron based on its type
-func (bp *phase) ProcessNeuron(neuron *Neuron, inputs []float64, timestep int) {
+func (bp *Phase) ProcessNeuron(neuron *Neuron, inputs []float64, timestep int) {
 	// Skip processing input neurons
 	if neuron.Type == "input" {
 		return
@@ -72,7 +72,7 @@ func (bp *phase) ProcessNeuron(neuron *Neuron, inputs []float64, timestep int) {
 }
 
 // ProcessDenseNeuron handles standard dense neuron computation
-func (bp *phase) ProcessDenseNeuron(neuron *Neuron, inputs []float64) {
+func (bp *Phase) ProcessDenseNeuron(neuron *Neuron, inputs []float64) {
 	sum := neuron.Bias
 	for _, input := range inputs {
 		sum += input
@@ -84,7 +84,7 @@ func (bp *phase) ProcessDenseNeuron(neuron *Neuron, inputs []float64) {
 }
 
 // ProcessRNNNeuron updates an RNN neuron over multiple time steps
-func (bp *phase) ProcessRNNNeuron(neuron *Neuron, inputs []float64) {
+func (bp *Phase) ProcessRNNNeuron(neuron *Neuron, inputs []float64) {
 	// Simple RNN implementation with separate weight for previous value
 	sum := neuron.Bias
 	for _, input := range inputs {
@@ -99,7 +99,7 @@ func (bp *phase) ProcessRNNNeuron(neuron *Neuron, inputs []float64) {
 }
 
 // ProcessLSTMNeuron updates an LSTM neuron with gating
-func (bp *phase) ProcessLSTMNeuron(neuron *Neuron, inputs []float64) {
+func (bp *Phase) ProcessLSTMNeuron(neuron *Neuron, inputs []float64) {
 	// Standard LSTM cell implementation with weights
 	var (
 		inputGate  float64
@@ -133,7 +133,7 @@ func (bp *phase) ProcessLSTMNeuron(neuron *Neuron, inputs []float64) {
 }
 
 // ProcessCNNNeuron applies convolutional behavior using the neuron's predefined kernels
-func (bp *phase) ProcessCNNNeuron(neuron *Neuron, inputs []float64) {
+func (bp *Phase) ProcessCNNNeuron(neuron *Neuron, inputs []float64) {
 	if len(neuron.Kernels) == 0 {
 		if bp.Debug {
 			fmt.Printf("CNN Neuron %d: No kernels defined. Setting value to 0.\n", neuron.ID)
@@ -188,7 +188,7 @@ func (bp *phase) ProcessCNNNeuron(neuron *Neuron, inputs []float64) {
 }
 
 // ApplyDropout randomly zeroes out a neuron's value
-func (bp *phase) ApplyDropout(neuron *Neuron) {
+func (bp *Phase) ApplyDropout(neuron *Neuron) {
 	if rand.Float64() < neuron.DropoutRate {
 		neuron.Value = 0
 		if bp.Debug {
@@ -202,7 +202,7 @@ func (bp *phase) ApplyDropout(neuron *Neuron) {
 }
 
 // ApplyBatchNormalization normalizes the neuron's value
-func (bp *phase) ApplyBatchNormalization(neuron *Neuron, mean, variance float64) {
+func (bp *Phase) ApplyBatchNormalization(neuron *Neuron, mean, variance float64) {
 	if neuron.BatchNormParams == nil {
 		if bp.Debug {
 			fmt.Printf("BatchNorm Neuron %d: BatchNormParams not initialized. Skipping normalization.\n", neuron.ID)
@@ -217,7 +217,7 @@ func (bp *phase) ApplyBatchNormalization(neuron *Neuron, mean, variance float64)
 }
 
 // ApplyAttention adjusts neuron values based on attention weights
-func (bp *phase) ApplyAttention(neuron *Neuron, inputs []float64, attentionWeights []float64) {
+func (bp *Phase) ApplyAttention(neuron *Neuron, inputs []float64, attentionWeights []float64) {
 	// Compute attention-weighted sum
 	sum := neuron.Bias
 	for i, input := range inputs {
@@ -230,7 +230,7 @@ func (bp *phase) ApplyAttention(neuron *Neuron, inputs []float64, attentionWeigh
 }
 
 // ComputeAttentionWeights computes attention weights for the given inputs
-func (bp *phase) ComputeAttentionWeights(neuron *Neuron, inputs []float64) []float64 {
+func (bp *Phase) ComputeAttentionWeights(neuron *Neuron, inputs []float64) []float64 {
 	// Simple scaled dot-product attention
 	queries := inputs
 	keys := inputs
@@ -250,7 +250,7 @@ func (bp *phase) ComputeAttentionWeights(neuron *Neuron, inputs []float64) []flo
 }
 
 // ApplySoftmax applies the Softmax function to all output neurons collectively
-func (bp *phase) ApplySoftmax() {
+func (bp *Phase) ApplySoftmax() {
 	outputValues := []float64{}
 	for _, id := range bp.OutputNodes {
 		if neuron, exists := bp.Neurons[id]; exists {
@@ -273,7 +273,7 @@ func (bp *phase) ApplySoftmax() {
 }
 
 // ProcessNCANeuron processes an NCA neuron based on its neighborhood and update rules
-func (bp *phase) ProcessNCANeuron(neuron *Neuron) {
+func (bp *Phase) ProcessNCANeuron(neuron *Neuron) {
 	// Gather values from neighboring neurons
 	neighborValues := []float64{}
 	for _, neighborID := range neuron.NeighborhoodIDs {
@@ -312,7 +312,7 @@ func (bp *phase) ProcessNCANeuron(neuron *Neuron) {
 }
 
 // InitializeKernel initializes a kernel with random weights
-func (bp *phase) InitializeKernel(kernelSize int) []float64 {
+func (bp *Phase) InitializeKernel(kernelSize int) []float64 {
 	kernel := make([]float64, kernelSize)
 	for i := range kernel {
 		kernel[i] = rand.Float64() // Initialize with random weights between 0 and 1
@@ -321,7 +321,7 @@ func (bp *phase) InitializeKernel(kernelSize int) []float64 {
 }
 
 // multiply multiplies two slices element-wise
-func (bp *phase) multiply(a, b []float64) []float64 {
+func (bp *Phase) multiply(a, b []float64) []float64 {
 	minLen := len(a)
 	if len(b) < minLen {
 		minLen = len(b)
@@ -334,7 +334,7 @@ func (bp *phase) multiply(a, b []float64) []float64 {
 }
 
 // sum computes the sum of a slice of float64
-func (bp *phase) sum(a []float64) float64 {
+func (bp *Phase) sum(a []float64) float64 {
 	total := 0.0
 	for _, v := range a {
 		total += v
@@ -343,7 +343,7 @@ func (bp *phase) sum(a []float64) float64 {
 }
 
 // sqrt computes the square root, handling negative inputs
-func (bp *phase) sqrt(a float64) float64 {
+func (bp *Phase) sqrt(a float64) float64 {
 	if a < 0 {
 		fmt.Printf("Warning: sqrt received negative value %f. Returning 0.\n", a)
 		return 0.0

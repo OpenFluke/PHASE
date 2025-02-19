@@ -57,6 +57,6 @@ func InitializeActivationFunctions() map[string]ActivationFunc {
 }
 
 // InitializeActivationFunctions initializes the ScalarActivationMap
-func (bp *phase) InitializeActivationFunctions() {
+func (bp *Phase) InitializeActivationFunctions() {
 	bp.ScalarActivationMap = InitializeActivationFunctions()
 }
