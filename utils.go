@@ -358,3 +358,7 @@ func replaceNaN(value float64) float64 {
 	}
 	return value
 }
+
+func (bp *Phase) SetDebug(b bool) {
+	bp.Debug = b
+}
