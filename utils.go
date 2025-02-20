@@ -329,7 +329,6 @@ func (p *Phase) MarshalJSON() ([]byte, error) {
 		Neurons: make(map[int]*Neuron),
 	}
 
-	// Copy neurons and replace NaN values
 	for id, neuron := range p.Neurons {
 		newNeuron := &Neuron{
 			ID:          neuron.ID,
@@ -341,7 +340,6 @@ func (p *Phase) MarshalJSON() ([]byte, error) {
 			GateWeights: neuron.GateWeights,
 		}
 
-		// Copy connections and replace NaN in weights
 		newNeuron.Connections = make([][]float64, len(neuron.Connections))
 		for i, conn := range neuron.Connections {
 			newNeuron.Connections[i] = []float64{conn[0], replaceNaN(conn[1])}
