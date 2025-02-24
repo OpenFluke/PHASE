@@ -362,3 +362,13 @@ func replaceNaN(value float64) float64 {
 func (bp *Phase) SetDebug(b bool) {
 	bp.Debug = b
 }
+
+// GetInputIds returns the input neuron IDs
+func (bp *Phase) GetInputIds() []int {
+	return bp.InputNodes
+}
+
+// GetOutputIds returns the output neuron IDs
+func (bp *Phase) GetOutputIds() []int {
+	return bp.OutputNodes
+}
