@@ -353,7 +353,7 @@ func (p *Phase) MarshalJSON() ([]byte, error) {
 
 // replaceNaN replaces NaN with 0 to ensure valid JSON.
 func replaceNaN(value float64) float64 {
-	if math.IsNaN(value) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return 0
 	}
 	return value
