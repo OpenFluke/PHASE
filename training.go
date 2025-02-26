@@ -5,7 +5,7 @@ import (
 )
 
 // TrainNetwork trains the network using backpropagation.
-func (bp *Phase) TrainNetwork(inputs map[int]float64, expectedOutputs map[int]float64, learningRate float64) {
+func (bp *Phase) TrainNetwork(inputs map[int]float64, expectedOutputs map[int]float64, learningRate float64, clampMin float64, clampMax float64) {
 	// Set a reasonable learning rate to prevent instability
 	if learningRate <= 0 || learningRate > 0.1 {
 		learningRate = 0.001 // Default to a small, stable value
@@ -47,20 +47,20 @@ func (bp *Phase) TrainNetwork(inputs map[int]float64, expectedOutputs map[int]fl
 			if !math.IsNaN(gradient) && !math.IsInf(gradient, 0) {
 				neuron.Connections[i][1] += learningRate * gradient
 				// Clamp weight to [-5, 5]
-				if neuron.Connections[i][1] > 5 {
-					neuron.Connections[i][1] = 5
-				} else if neuron.Connections[i][1] < -5 {
-					neuron.Connections[i][1] = -5
+				if neuron.Connections[i][1] > clampMax {
+					neuron.Connections[i][1] = clampMax
+				} else if neuron.Connections[i][1] < clampMin {
+					neuron.Connections[i][1] = clampMin
 				}
 			}
 		}
 		if !math.IsNaN(errorTerm) && !math.IsInf(errorTerm, 0) {
 			neuron.Bias += learningRate * errorTerm
 			// Clamp bias to [-5, 5]
-			if neuron.Bias > 5 {
-				neuron.Bias = 5
-			} else if neuron.Bias < -5 {
-				neuron.Bias = -5
+			if neuron.Bias > clampMax {
+				neuron.Bias = clampMax
+			} else if neuron.Bias < clampMin {
+				neuron.Bias = clampMin
 			}
 		}
 	}
