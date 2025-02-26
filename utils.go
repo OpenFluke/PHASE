@@ -372,3 +372,14 @@ func (bp *Phase) GetInputIds() []int {
 func (bp *Phase) GetOutputIds() []int {
 	return bp.OutputNodes
 }
+
+// getNonInputNeuronIDs returns a slice of IDs for all non-input neurons in the Phase.
+func (bp *Phase) getNonInputNeuronIDs() []int {
+	var ids []int
+	for id, neuron := range bp.Neurons {
+		if neuron.Type != "input" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}

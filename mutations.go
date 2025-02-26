@@ -220,3 +220,164 @@ func (bp *Phase) ChangeActivationFunction() {
 		fmt.Printf("Changed activation function of Neuron %d to %s\n", neuronID, newAct)
 	}
 }
+
+// AdjustAllWeights adjusts all connection weights by the specified amount.
+func (bp *Phase) AdjustAllWeights(adjustment float64) {
+	for _, neuron := range bp.Neurons {
+		for i := range neuron.Connections {
+			neuron.Connections[i][1] += adjustment
+		}
+	}
+	if bp.Debug {
+		fmt.Printf("Adjusted all weights by %f\n", adjustment)
+	}
+}
+
+// AdjustAllBiases adjusts all biases by the specified amount.
+func (bp *Phase) AdjustAllBiases(adjustment float64) {
+	for _, neuron := range bp.Neurons {
+		neuron.Bias += adjustment
+	}
+	if bp.Debug {
+		fmt.Printf("Adjusted all biases by %f\n", adjustment)
+	}
+}
+
+// changeNeuronTypeTo changes the type of the neuron with the given ID to newType.
+func (bp *Phase) changeNeuronTypeTo(neuronID int, newType string) {
+	neuron, exists := bp.Neurons[neuronID]
+	if !exists || neuron.Type == "input" {
+		return
+	}
+	oldType := neuron.Type
+	neuron.Type = newType
+
+	// Reset type-specific fields
+	neuron.GateWeights = nil
+	neuron.Kernels = nil
+	neuron.BatchNormParams = nil
+	neuron.DropoutRate = 0
+	neuron.CellState = 0
+
+	// Initialize new type-specific fields
+	switch newType {
+	case "lstm":
+		conCount := len(neuron.Connections)
+		neuron.GateWeights = map[string][]float64{
+			"input":  bp.RandomWeights(conCount),
+			"forget": bp.RandomWeights(conCount),
+			"output": bp.RandomWeights(conCount),
+			"cell":   bp.RandomWeights(conCount),
+		}
+		neuron.CellState = 0
+	case "cnn":
+		neuron.Kernels = [][]float64{
+			{rand.Float64(), rand.Float64()},
+			{rand.Float64(), rand.Float64()},
+		}
+	case "batch_norm":
+		neuron.BatchNormParams = &BatchNormParams{
+			Gamma: 1.0,
+			Beta:  0.0,
+			Mean:  0.0,
+			Var:   1.0,
+		}
+	case "dropout":
+		neuron.DropoutRate = 0.5
+	}
+
+	if bp.Debug {
+		fmt.Printf("Changed Neuron %d from %s to %s\n", neuronID, oldType, newType)
+	}
+}
+
+// changeNeuronType changes the type of the neuron with the given ID to a random type different from its current type.
+func (bp *Phase) changeNeuronType(neuronID int) {
+	neuron, exists := bp.Neurons[neuronID]
+	if !exists || neuron.Type == "input" {
+		return
+	}
+	currentType := neuron.Type
+	var possibleTypes []string
+	for _, t := range neuronTypes {
+		if t != currentType {
+			possibleTypes = append(possibleTypes, t)
+		}
+	}
+	if len(possibleTypes) == 0 {
+		return
+	}
+	newType := possibleTypes[rand.Intn(len(possibleTypes))]
+	bp.changeNeuronTypeTo(neuronID, newType)
+}
+
+// ChangeSingleNeuronType randomly selects one non-input neuron and changes its type to a different random type.
+func (bp *Phase) ChangeSingleNeuronType() {
+	nonInputNeurons := bp.getNonInputNeuronIDs()
+	if len(nonInputNeurons) == 0 {
+		if bp.Debug {
+			fmt.Println("No non-input neurons available to change.")
+		}
+		return
+	}
+	neuronID := nonInputNeurons[rand.Intn(len(nonInputNeurons))]
+	bp.changeNeuronType(neuronID)
+}
+
+// ChangePercentageOfNeuronsTypes changes the types of a specified percentage of non-input neurons to random types.
+func (bp *Phase) ChangePercentageOfNeuronsTypes(percentage float64) {
+	nonInputNeurons := bp.getNonInputNeuronIDs()
+	total := len(nonInputNeurons)
+	if total == 0 {
+		if bp.Debug {
+			fmt.Println("No non-input neurons available to change.")
+		}
+		return
+	}
+	if percentage < 0 {
+		percentage = 0
+	} else if percentage > 100 {
+		percentage = 100
+	}
+	numToChange := int(float64(total) * (percentage / 100.0))
+	if numToChange < 1 && percentage > 0 {
+		numToChange = 1
+	}
+	rand.Shuffle(len(nonInputNeurons), func(i, j int) {
+		nonInputNeurons[i], nonInputNeurons[j] = nonInputNeurons[j], nonInputNeurons[i]
+	})
+	for i := 0; i < numToChange && i < total; i++ {
+		bp.changeNeuronType(nonInputNeurons[i])
+	}
+}
+
+// RandomizeAllNeuronsTypes changes all non-input neurons to random types different from their current types.
+func (bp *Phase) RandomizeAllNeuronsTypes() {
+	nonInputNeurons := bp.getNonInputNeuronIDs()
+	if len(nonInputNeurons) == 0 {
+		if bp.Debug {
+			fmt.Println("No non-input neurons available to randomize.")
+		}
+		return
+	}
+	for _, id := range nonInputNeurons {
+		bp.changeNeuronType(id)
+	}
+}
+
+func (bp *Phase) SetAllNeuronsToSameRandomType() {
+	nonInputNeurons := bp.getNonInputNeuronIDs()
+	if len(nonInputNeurons) == 0 {
+		if bp.Debug {
+			fmt.Println("No non-input neurons available to change.")
+		}
+		return
+	}
+	newType := neuronTypes[rand.Intn(len(neuronTypes))]
+	for _, id := range nonInputNeurons {
+		bp.changeNeuronTypeTo(id, newType)
+	}
+	if bp.Debug {
+		fmt.Printf("Set all non-input neurons to type %s\n", newType)
+	}
+}

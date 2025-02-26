@@ -13,6 +13,7 @@ type Phase struct {
 	OutputNodes         []int                     `json:"output_nodes"`
 	ScalarActivationMap map[string]ActivationFunc `json:"-"`
 	Debug               bool                      `json:"-"`
+	TrainableNeurons    []int                     // New field: list of neuron IDs to train
 }
 
 // ModelMetadata holds metadata, evaluation benchmarks, and additional information for models in the AI framework.

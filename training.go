@@ -121,3 +121,77 @@ func (bp *Phase) getWeight(sourceID, targetID int) float64 {
 	}
 	return 0
 }
+
+func (bp *Phase) TrainNetworkTargeted(inputs map[int]float64, expectedOutputs map[int]float64, learningRate float64, clampMin float64, clampMax float64, trainableNeurons []int) {
+	// Set a reasonable learning rate to prevent instability
+	if learningRate <= 0 || learningRate > 0.1 {
+		learningRate = 0.001 // Default to a small, stable value
+	}
+
+	// Forward pass
+	bp.Forward(inputs, 1)
+
+	// Compute output errors
+	outputErrors := make(map[int]float64)
+	for id, expected := range expectedOutputs {
+		actual := bp.Neurons[id].Value
+		outputErrors[id] = expected - actual
+	}
+
+	// Create a set of trainable neuron IDs for fast lookup
+	trainableSet := make(map[int]struct{}, len(trainableNeurons))
+	for _, id := range trainableNeurons {
+		trainableSet[id] = struct{}{}
+	}
+
+	// Backward pass
+	for id, neuron := range bp.Neurons {
+		if neuron.Type == "input" {
+			continue
+		}
+
+		// Compute error term for all neurons (needed for backpropagation)
+		errorTerm := 0.0
+		if err, isOutput := outputErrors[id]; isOutput {
+			errorTerm = err * bp.activationDerivative(neuron.Value, neuron.Activation)
+		} else {
+			for _, downstreamID := range bp.getDownstreamNeurons(id) {
+				if downstreamErr, exists := outputErrors[downstreamID]; exists {
+					weight := bp.getWeight(id, downstreamID)
+					errorTerm += downstreamErr * weight
+				}
+			}
+			errorTerm *= bp.activationDerivative(neuron.Value, neuron.Activation)
+		}
+
+		// Only update weights and bias if this neuron is in trainableNeurons
+		if _, isTrainable := trainableSet[id]; isTrainable {
+			// Update weights
+			for i, conn := range neuron.Connections {
+				sourceID := int(conn[0])
+				sourceValue := bp.Neurons[sourceID].Value
+				gradient := errorTerm * sourceValue
+				if !math.IsNaN(gradient) && !math.IsInf(gradient, 0) {
+					neuron.Connections[i][1] += learningRate * gradient
+					// Clamp weight
+					if neuron.Connections[i][1] > clampMax {
+						neuron.Connections[i][1] = clampMax
+					} else if neuron.Connections[i][1] < clampMin {
+						neuron.Connections[i][1] = clampMin
+					}
+				}
+			}
+
+			// Update bias
+			if !math.IsNaN(errorTerm) && !math.IsInf(errorTerm, 0) {
+				neuron.Bias += learningRate * errorTerm
+				// Clamp bias
+				if neuron.Bias > clampMax {
+					neuron.Bias = clampMax
+				} else if neuron.Bias < clampMin {
+					neuron.Bias = clampMin
+				}
+			}
+		}
+	}
+}
