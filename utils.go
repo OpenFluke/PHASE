@@ -410,3 +410,33 @@ func argmaxFloat64Slice(slice []float64) int {
 	}
 	return maxIdx
 }
+
+// argmaxMap finds which key has the highest value.
+// Typically used for classification decisions.
+func argmaxMap(m map[int]float64) int {
+	bestKey := -1
+	bestVal := math.Inf(-1)
+	for k, v := range m {
+		if v > bestVal {
+			bestVal = v
+			bestKey = k
+		}
+	}
+	return bestKey
+}
+
+// argmaxFloatSlice returns the index of the largest value in 'vals'.
+func argmaxFloatSlice(vals []float64) int {
+	if len(vals) == 0 {
+		return -1
+	}
+	maxIdx := 0
+	maxVal := vals[0]
+	for i := 1; i < len(vals); i++ {
+		if vals[i] > maxVal {
+			maxVal = vals[i]
+			maxIdx = i
+		}
+	}
+	return maxIdx
+}
