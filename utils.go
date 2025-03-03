@@ -383,3 +383,30 @@ func (bp *Phase) getNonInputNeuronIDs() []int {
 	}
 	return ids
 }
+
+// Helper functions (assumed to exist elsewhere in the package)
+func maxFloat64Slice(slice []float64) float64 {
+	if len(slice) == 0 {
+		return 0
+	}
+	max := slice[0]
+	for _, v := range slice[1:] {
+		if v > max {
+			max = v
+		}
+	}
+	return max
+}
+
+func argmaxFloat64Slice(slice []float64) int {
+	if len(slice) == 0 {
+		return -1
+	}
+	maxIdx := 0
+	for i := 1; i < len(slice); i++ {
+		if slice[i] > slice[maxIdx] {
+			maxIdx = i
+		}
+	}
+	return maxIdx
+}
