@@ -124,6 +124,9 @@ func (bp *Phase) ApplyScalarActivation(value float64, activation string) float64
 // Forward propagates inputs through the network
 // Forward propagates inputs through the network
 func (bp *Phase) Forward(inputs map[int]float64, timesteps int) {
+
+	bp.ResetNeuronValues()
+
 	// Set input neurons
 	for id, value := range inputs {
 		if neuron, exists := bp.Neurons[id]; exists {

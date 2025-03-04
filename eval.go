@@ -56,7 +56,7 @@ func (bp *Phase) EvaluateMetrics(
 		}
 
 		// The fix: reset so each sample starts with zeroed neuron states
-		bp.ResetNeuronValues()
+		//bp.ResetNeuronValues()
 
 		// Forward pass
 		bp.RunNetwork(inputMap, 1)
