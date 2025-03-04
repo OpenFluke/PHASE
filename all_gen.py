@@ -1,5 +1,5 @@
 import os
-from docx import Document
+from docx import Document  # Changed from 'from docx import Document'
 from docx.shared import Pt
 from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.ns import qn

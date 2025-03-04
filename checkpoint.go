@@ -2,6 +2,7 @@ package phase
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 )
@@ -185,6 +186,12 @@ func (bp *Phase) ComputeOutputsFromCheckpoint(checkpoint map[int]map[string]inte
 // AddNeuronFromPreOutputs adds a new neuron connected from a random subset of pre-output neurons
 // and wired to all output neurons.
 func (bp *Phase) AddNeuronFromPreOutputs(neuronType, activation string, minConnections, maxConnections int) *Neuron {
+
+	// If activation not provided, pick a random one
+	if activation == "" {
+		activation = possibleActivations[rand.Intn(len(possibleActivations))]
+	}
+
 	// Get the IDs of pre-output neurons (neurons connected to outputs)
 	preOutputIDs := bp.GetPreOutputNeurons()
 	if len(preOutputIDs) == 0 {
@@ -228,4 +235,97 @@ func (bp *Phase) AddNeuronFromPreOutputs(neuronType, activation string, minConne
 	bp.RewireOutputsThroughNewNeuron(newID)
 
 	return newNeuron
+}
+
+// EvaluateMetricsFromCheckpoints evaluates the model's performance using precomputed checkpoints.
+// It computes three metrics:
+// 1. Exact accuracy: percentage of correct predictions (in [0, 100]).
+// 2. Closeness bins: distribution of how close the correct output is to 1.0 (10 bins, each in [0, 100]).
+// 3. Approximate score: weighted score awarding partial credit for near-correct predictions (in [0, 100]).
+func (bp *Phase) EvaluateMetricsFromCheckpoints(
+	checkpoints []map[int]map[string]interface{},
+	labels []float64,
+) (
+	exactAcc float64, // Exact accuracy in [0, 100]%
+	closenessBins []float64, // Closeness bins: 0-10%, 10-20%, ..., >90%
+	approxScore float64, // Approximate score in [0, 100]
+) {
+	nSamples := len(checkpoints)
+	if nSamples == 0 || len(labels) != nSamples {
+		return 0, nil, 0
+	}
+
+	numOutputs := len(bp.OutputNodes)
+	if numOutputs == 0 {
+		return 0, nil, 0
+	}
+
+	// Bins: ratio in [0..0.1], [0.1..0.2], …, >0.9 => 10 total
+	thresholds := []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
+	binCounts := make([]float64, len(thresholds)+1)
+
+	exactMatches := 0.0
+	sumApprox := 0.0
+	sampleWeight := 100.0 / float64(nSamples) // Each sample's contribution to approx score
+
+	for i, checkpoint := range checkpoints {
+		label := int(math.Round(labels[i]))
+		if label < 0 || label >= numOutputs {
+			continue
+		}
+
+		// Compute outputs from checkpoint
+		bp.ComputeOutputsFromCheckpoint(checkpoint)
+
+		// Gather outputs in order of OutputNodes
+		vals := make([]float64, numOutputs)
+		for j, id := range bp.OutputNodes {
+			v := bp.Neurons[id].Value // Or use outputMap[id] if preferred
+			if math.IsNaN(v) || math.IsInf(v, 0) {
+				v = 0
+			}
+			vals[j] = v
+		}
+
+		// (1) Exact Accuracy
+		predClass := argmaxFloatSlice(vals)
+		if predClass == label {
+			exactMatches++
+		}
+
+		// (2) Closeness Bins
+		correctVal := vals[label]
+		difference := math.Abs(correctVal - 1.0)
+		if difference > 1 {
+			difference = 1 // Clamp to [0, 1]
+		}
+		ratio := difference
+
+		assigned := false
+		for k, th := range thresholds {
+			if ratio <= th {
+				binCounts[k]++
+				assigned = true
+				break
+			}
+		}
+		if !assigned {
+			binCounts[len(thresholds)]++ // >90%
+		}
+
+		// (3) Approximate Score
+		approx := bp.CalculatePercentageMatch(float64(label), float64(predClass))
+		partialCredit := approx / 100.0
+		sumApprox += partialCredit * sampleWeight
+	}
+
+	// Calculate final metrics
+	exactAcc = (exactMatches / float64(nSamples)) * 100.0
+	closenessBins = make([]float64, len(binCounts))
+	for i := range binCounts {
+		closenessBins[i] = (binCounts[i] / float64(nSamples)) * 100.0
+	}
+	approxScore = sumApprox
+
+	return exactAcc, closenessBins, approxScore
 }
