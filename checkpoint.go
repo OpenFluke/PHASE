@@ -2,6 +2,7 @@ package phase
 
 import (
 	"fmt"
+	"math/rand"
 	"sort"
 )
 
@@ -179,4 +180,52 @@ func (bp *Phase) ComputeOutputsFromCheckpoint(checkpoint map[int]map[string]inte
 		outputs[id] = bp.Neurons[id].Value
 	}
 	return outputs
+}
+
+// AddNeuronFromPreOutputs adds a new neuron connected from a random subset of pre-output neurons
+// and wired to all output neurons.
+func (bp *Phase) AddNeuronFromPreOutputs(neuronType, activation string, minConnections, maxConnections int) *Neuron {
+	// Get the IDs of pre-output neurons (neurons connected to outputs)
+	preOutputIDs := bp.GetPreOutputNeurons()
+	if len(preOutputIDs) == 0 {
+		return nil
+	}
+
+	// Determine number of incoming connections
+	numConns := rand.Intn(maxConnections-minConnections+1) + minConnections
+	if numConns > len(preOutputIDs) {
+		numConns = len(preOutputIDs)
+	}
+
+	// Randomly select pre-output neurons
+	selectedIDs := make([]int, len(preOutputIDs))
+	copy(selectedIDs, preOutputIDs)
+	rand.Shuffle(len(selectedIDs), func(i, j int) {
+		selectedIDs[i], selectedIDs[j] = selectedIDs[j], selectedIDs[i]
+	})
+	selectedIDs = selectedIDs[:numConns]
+
+	// Create the new neuron
+	newID := bp.GetNextNeuronID()
+	newNeuron := &Neuron{
+		ID:          newID,
+		Type:        neuronType,
+		Bias:        rand.NormFloat64() * 0.1,
+		Activation:  activation,
+		Connections: make([][]float64, 0, numConns),
+	}
+
+	// Add incoming connections from selected pre-output neurons
+	for _, sourceID := range selectedIDs {
+		weight := rand.NormFloat64() * 0.1
+		newNeuron.Connections = append(newNeuron.Connections, []float64{float64(sourceID), weight})
+	}
+
+	// Add the neuron to the network
+	bp.Neurons[newID] = newNeuron
+
+	// Connect the new neuron to all output neurons
+	bp.RewireOutputsThroughNewNeuron(newID)
+
+	return newNeuron
 }
