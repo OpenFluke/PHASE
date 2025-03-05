@@ -520,3 +520,32 @@ func (bp *Phase) ComputeOutputsWithNewNeuronsFromCheckpoint(checkpoint map[int]m
 	// Return the output values
 	return bp.GetOutputs()
 }
+
+// ComputePartialOutputsFromCheckpoint restores the state of neurons that were checkpointed,
+// then computes the outputs only for the new neurons (those not in the checkpoint),
+// and finally processes the output neurons.
+func (bp *Phase) ComputePartialOutputsFromCheckpoint(checkpoint map[int]map[string]interface{}) map[int]float64 {
+	// Restore checkpointed neurons.
+	for id, state := range checkpoint {
+		if neuron, exists := bp.Neurons[id]; exists {
+			bp.SetNeuronState(neuron, state)
+		}
+	}
+	// Process neurons that are not in the checkpoint (new neurons).
+	for id, neuron := range bp.Neurons {
+		if neuron.Type == "input" {
+			continue
+		}
+		if _, exists := checkpoint[id]; !exists {
+			inputValues := bp.gatherInputs(neuron)
+			bp.ProcessNeuron(neuron, inputValues, 0)
+		}
+	}
+	// Update output neurons.
+	for _, outID := range bp.OutputNodes {
+		neuron := bp.Neurons[outID]
+		inputValues := bp.gatherInputs(neuron)
+		bp.ProcessNeuron(neuron, inputValues, 0)
+	}
+	return bp.GetOutputs()
+}
