@@ -7,6 +7,7 @@ import (
 
 // Phase encapsulates the entire neural network
 type Phase struct {
+	ID                  int                       `json:"id"` // Added ID field
 	Neurons             map[int]*Neuron           `json:"neurons"`
 	QuantumNeurons      map[int]*QuantumNeuron    `json:"quant"`
 	InputNodes          []int                     `json:"input_nodes"`
@@ -76,8 +77,10 @@ type ModelMetadata struct {
 }
 
 // NewPhase creates and initializes a new Phase
+// network.go (partial update)
 func NewPhase() *Phase {
 	bp := &Phase{
+		ID:                  0, // Initial model gets ID 0
 		Neurons:             make(map[int]*Neuron),
 		InputNodes:          []int{},
 		QuantumNeurons:      make(map[int]*QuantumNeuron),
@@ -122,9 +125,7 @@ func (bp *Phase) ApplyScalarActivation(value float64, activation string) float64
 }
 
 // Forward propagates inputs through the network
-// Forward propagates inputs through the network
 func (bp *Phase) Forward(inputs map[int]float64, timesteps int) {
-
 	bp.ResetNeuronValues()
 
 	// Set input neurons
@@ -143,30 +144,32 @@ func (bp *Phase) Forward(inputs map[int]float64, timesteps int) {
 			fmt.Printf("=== Timestep %d ===\n", t)
 		}
 
-		// Process all neurons, including hidden neurons
+		// Process all neurons in two passes: hidden first, then outputs
+		// First pass: hidden neurons (including new ones)
 		for id := 1; id <= len(bp.Neurons); id++ {
 			neuron, exists := bp.Neurons[id]
-			if !exists || neuron.Type == "input" { // Skip input neurons
+			if !exists || neuron.Type == "input" || contains(bp.OutputNodes, id) {
 				continue
 			}
+			inputValues := bp.gatherInputs(neuron) // Use gatherInputs from earlier
+			bp.ProcessNeuron(neuron, inputValues, t)
+			if bp.Debug {
+				fmt.Printf("Dense Neuron %d: Value=%f\n", id, neuron.Value)
+			}
+		}
 
-			// Gather inputs from connected neurons
-			inputValues := []float64{}
-			for _, conn := range neuron.Connections {
-				sourceID := int(conn[0])
-				weight := conn[1]
-				if sourceNeuron, exists := bp.Neurons[sourceID]; exists {
-					inputValues = append(inputValues, sourceNeuron.Value*weight)
+		// Second pass: output neurons
+		for _, id := range bp.OutputNodes {
+			neuron, exists := bp.Neurons[id]
+			if exists {
+				inputValues := bp.gatherInputs(neuron)
+				bp.ProcessNeuron(neuron, inputValues, t)
+				if bp.Debug {
+					fmt.Printf("Dense Neuron %d: Value=%f\n", id, neuron.Value)
 				}
 			}
-
-			// Process the neuron
-			bp.ProcessNeuron(neuron, inputValues, t)
 		}
 	}
-
-	// Apply softmax to output neurons
-	//bp.ApplySoftmax()
 }
 
 // RunNetwork runs the neural network with given inputs and timesteps

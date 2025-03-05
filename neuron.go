@@ -38,6 +38,7 @@ type Neuron struct {
 	NeighborhoodIDs []int     `json:"neighborhood"` // IDs of neighboring neurons (for NCA)
 	UpdateRules     string    `json:"update_rules"` // Rules for updating (e.g., Sum, Average)
 	NCAState        []float64 `json:"nca_state"`    // Internal state for NCA neurons
+	IsNew           bool
 }
 
 // ProcessNeuron processes a single neuron based on its type

@@ -118,14 +118,16 @@ func (bp *Phase) ForwardUpTo(inputs map[int]float64, timesteps int, exclude []in
 // CheckpointPreOutputNeurons computes up to pre-output neurons and saves their states.
 // It processes a batch of inputs and returns a slice of checkpoints.
 func (bp *Phase) CheckpointPreOutputNeurons(inputs []map[int]float64, timesteps int) []map[int]map[string]interface{} {
-	preOutputIDs := bp.GetPreOutputNeurons()
 	checkpoints := make([]map[int]map[string]interface{}, len(inputs))
 
 	for i, inputMap := range inputs {
 		// Run forward pass excluding output neurons
 		bp.ForwardUpTo(inputMap, timesteps, bp.OutputNodes)
 
-		// Save pre-output neuron states
+		// Now compute the current set of pre-output neurons.
+		preOutputIDs := bp.GetPreOutputNeurons()
+
+		// Save their states.
 		checkpoint := make(map[int]map[string]interface{})
 		for _, id := range preOutputIDs {
 			if neuron, exists := bp.Neurons[id]; exists {
@@ -141,41 +143,44 @@ func (bp *Phase) CheckpointPreOutputNeurons(inputs []map[int]float64, timesteps 
 	return checkpoints
 }
 
-// ComputeOutputsFromCheckpoint restores pre-output states and computes output values.
-// It ensures a clean state before computation to avoid interference.
+// ComputeOutputsFromCheckpoint restores the pre-output neuron states from the checkpoint
+// and computes the output neurons’ values, but it filters each output neuron’s input connections
+// so that only those from neurons included in the checkpoint are used.
 func (bp *Phase) ComputeOutputsFromCheckpoint(checkpoint map[int]map[string]interface{}) map[int]float64 {
-	bp.ResetNeuronValues() // Reset all non-input neurons
+	// Reset non-input neurons.
+	bp.ResetNeuronValues()
 
-	// Restore pre-output neuron states from the checkpoint
+	// Build a set of checkpointed neuron IDs and restore their state.
+	preOutputSet := make(map[int]bool)
 	for id, state := range checkpoint {
 		if neuron, exists := bp.Neurons[id]; exists {
 			bp.SetNeuronState(neuron, state)
+			preOutputSet[id] = true
 		}
 	}
 
-	// Sort output nodes for consistent processing order
+	// Sort output nodes for consistent processing.
 	sortedOutputIDs := make([]int, len(bp.OutputNodes))
 	copy(sortedOutputIDs, bp.OutputNodes)
 	sort.Ints(sortedOutputIDs)
 
-	// Compute each output neuron
-	for _, id := range sortedOutputIDs {
-		neuron := bp.Neurons[id]
+	// Process each output neuron.
+	for _, outID := range sortedOutputIDs {
+		neuron := bp.Neurons[outID]
 		inputValues := []float64{}
 		for _, conn := range neuron.Connections {
 			sourceID := int(conn[0])
 			weight := conn[1]
-			if sourceNeuron, exists := bp.Neurons[sourceID]; exists {
+			if _, ok := preOutputSet[sourceID]; ok {
+				inputValues = append(inputValues, bp.Neurons[sourceID].Value*weight)
+			} else if sourceNeuron, exists := bp.Neurons[sourceID]; exists {
 				inputValues = append(inputValues, sourceNeuron.Value*weight)
 			}
 		}
-		bp.ProcessNeuron(neuron, inputValues, 0) // Single timestep computation
-		if bp.Debug {
-			fmt.Printf("Output Neuron %d computed: Value=%f\n", id, neuron.Value)
-		}
+		bp.ProcessNeuron(neuron, inputValues, 0)
 	}
 
-	// Collect output values
+	// Collect output values.
 	outputs := make(map[int]float64)
 	for _, id := range bp.OutputNodes {
 		outputs[id] = bp.Neurons[id].Value
@@ -183,58 +188,73 @@ func (bp *Phase) ComputeOutputsFromCheckpoint(checkpoint map[int]map[string]inte
 	return outputs
 }
 
-// AddNeuronFromPreOutputs adds a new neuron connected from a random subset of pre-output neurons
-// and wired to all output neurons.
+// AddNeuronFromPreOutputs creates a new neuron whose incoming connections
+// are taken from a random subset of the pre-output neurons, then adds a connection
+// from the new neuron to every output neuron (without removing existing connections).
 func (bp *Phase) AddNeuronFromPreOutputs(neuronType, activation string, minConnections, maxConnections int) *Neuron {
-
-	// If activation not provided, pick a random one
+	// If no activation is provided, choose one randomly.
 	if activation == "" {
 		activation = possibleActivations[rand.Intn(len(possibleActivations))]
 	}
 
-	// Get the IDs of pre-output neurons (neurons connected to outputs)
+	// Get the IDs of neurons that feed into outputs.
 	preOutputIDs := bp.GetPreOutputNeurons()
 	if len(preOutputIDs) == 0 {
 		return nil
 	}
 
-	// Determine number of incoming connections
+	// Determine the number of incoming connections.
 	numConns := rand.Intn(maxConnections-minConnections+1) + minConnections
 	if numConns > len(preOutputIDs) {
 		numConns = len(preOutputIDs)
 	}
 
-	// Randomly select pre-output neurons
-	selectedIDs := make([]int, len(preOutputIDs))
-	copy(selectedIDs, preOutputIDs)
-	rand.Shuffle(len(selectedIDs), func(i, j int) {
-		selectedIDs[i], selectedIDs[j] = selectedIDs[j], selectedIDs[i]
+	// Shuffle and select a subset.
+	rand.Shuffle(len(preOutputIDs), func(i, j int) {
+		preOutputIDs[i], preOutputIDs[j] = preOutputIDs[j], preOutputIDs[i]
 	})
-	selectedIDs = selectedIDs[:numConns]
+	selectedIDs := preOutputIDs[:numConns]
 
-	// Create the new neuron
+	// Create the new neuron.
 	newID := bp.GetNextNeuronID()
 	newNeuron := &Neuron{
 		ID:          newID,
 		Type:        neuronType,
-		Bias:        rand.NormFloat64() * 0.1,
+		Bias:        rand.NormFloat64() * 0.1, // small random bias
 		Activation:  activation,
 		Connections: make([][]float64, 0, numConns),
+		IsNew:       true, // Mark as new
 	}
 
-	// Add incoming connections from selected pre-output neurons
-	for _, sourceID := range selectedIDs {
+	// Add incoming connections from the selected pre-output neurons.
+	for _, srcID := range selectedIDs {
 		weight := rand.NormFloat64() * 0.1
-		newNeuron.Connections = append(newNeuron.Connections, []float64{float64(sourceID), weight})
+		newNeuron.Connections = append(newNeuron.Connections, []float64{float64(srcID), weight})
 	}
 
-	// Add the neuron to the network
+	// Add the new neuron to the network.
 	bp.Neurons[newID] = newNeuron
 
-	// Connect the new neuron to all output neurons
-	bp.RewireOutputsThroughNewNeuron(newID)
+	// Instead of rewiring (removing existing connections), simply add an extra connection
+	// from the new neuron to every output neuron.
+	bp.AddNewNeuronToOutput(newID)
 
 	return newNeuron
+}
+
+// AddNewNeuronToOutput connects the new neuron to every output neuron by adding
+// a new connection with a small random weight if one does not already exist.
+func (bp *Phase) AddNewNeuronToOutput(newNeuronID int) {
+	for _, outID := range bp.OutputNodes {
+		outNeuron := bp.Neurons[outID]
+		if !bp.connectionExists(newNeuronID, outID) {
+			weight := rand.NormFloat64() * 0.1 // small random weight
+			outNeuron.Connections = append(outNeuron.Connections, []float64{float64(newNeuronID), weight})
+			if bp.Debug {
+				fmt.Printf("Added connection from new neuron %d to output neuron %d with weight %f\n", newNeuronID, outID, weight)
+			}
+		}
+	}
 }
 
 // EvaluateMetricsFromCheckpoints evaluates the model's performance using precomputed checkpoints.
@@ -242,6 +262,7 @@ func (bp *Phase) AddNeuronFromPreOutputs(neuronType, activation string, minConne
 // 1. Exact accuracy: percentage of correct predictions (in [0, 100]).
 // 2. Closeness bins: distribution of how close the correct output is to 1.0 (10 bins, each in [0, 100]).
 // 3. Approximate score: weighted score awarding partial credit for near-correct predictions (in [0, 100]).
+// EvaluateMetricsFromCheckpoints evaluates the model's performance using precomputed checkpoints.
 func (bp *Phase) EvaluateMetricsFromCheckpoints(
 	checkpoints []map[int]map[string]interface{},
 	labels []float64,
@@ -260,13 +281,12 @@ func (bp *Phase) EvaluateMetricsFromCheckpoints(
 		return 0, nil, 0
 	}
 
-	// Bins: ratio in [0..0.1], [0.1..0.2], …, >0.9 => 10 total
 	thresholds := []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
 	binCounts := make([]float64, len(thresholds)+1)
 
 	exactMatches := 0.0
 	sumApprox := 0.0
-	sampleWeight := 100.0 / float64(nSamples) // Each sample's contribution to approx score
+	sampleWeight := 100.0 / float64(nSamples)
 
 	for i, checkpoint := range checkpoints {
 		label := int(math.Round(labels[i]))
@@ -274,30 +294,29 @@ func (bp *Phase) EvaluateMetricsFromCheckpoints(
 			continue
 		}
 
-		// Compute outputs from checkpoint
-		bp.ComputeOutputsFromCheckpoint(checkpoint)
+		// Use the new function to compute outputs, including new neurons
+		bp.ComputeOutputsWithNewNeuronsFromCheckpoint(checkpoint)
 
-		// Gather outputs in order of OutputNodes
 		vals := make([]float64, numOutputs)
 		for j, id := range bp.OutputNodes {
-			v := bp.Neurons[id].Value // Or use outputMap[id] if preferred
+			v := bp.Neurons[id].Value
 			if math.IsNaN(v) || math.IsInf(v, 0) {
 				v = 0
 			}
 			vals[j] = v
 		}
 
-		// (1) Exact Accuracy
+		// Exact Accuracy
 		predClass := argmaxFloatSlice(vals)
 		if predClass == label {
 			exactMatches++
 		}
 
-		// (2) Closeness Bins
+		// Closeness Bins
 		correctVal := vals[label]
 		difference := math.Abs(correctVal - 1.0)
 		if difference > 1 {
-			difference = 1 // Clamp to [0, 1]
+			difference = 1
 		}
 		ratio := difference
 
@@ -310,16 +329,15 @@ func (bp *Phase) EvaluateMetricsFromCheckpoints(
 			}
 		}
 		if !assigned {
-			binCounts[len(thresholds)]++ // >90%
+			binCounts[len(thresholds)]++
 		}
 
-		// (3) Approximate Score
+		// Approximate Score
 		approx := bp.CalculatePercentageMatch(float64(label), float64(predClass))
 		partialCredit := approx / 100.0
 		sumApprox += partialCredit * sampleWeight
 	}
 
-	// Calculate final metrics
 	exactAcc = (exactMatches / float64(nSamples)) * 100.0
 	closenessBins = make([]float64, len(binCounts))
 	for i := range binCounts {
@@ -328,4 +346,177 @@ func (bp *Phase) EvaluateMetricsFromCheckpoints(
 	approxScore = sumApprox
 
 	return exactAcc, closenessBins, approxScore
+}
+
+// CheckpointAllHiddenNeurons runs a forward pass and saves the state of all non-input neurons.
+func (bp *Phase) CheckpointAllHiddenNeurons(inputs []map[int]float64, timesteps int) []map[int]map[string]interface{} {
+	checkpoints := make([]map[int]map[string]interface{}, len(inputs))
+	for i, inputMap := range inputs {
+		// Run the full forward pass (including all hidden neurons)
+		bp.Forward(inputMap, timesteps)
+		checkpoint := make(map[int]map[string]interface{})
+		// Save state for every neuron that is not an input.
+		for id, neuron := range bp.Neurons {
+			if neuron.Type != "input" {
+				checkpoint[id] = bp.GetNeuronState(neuron)
+			}
+		}
+		checkpoints[i] = checkpoint
+		if bp.Debug {
+			fmt.Printf("Checkpoint %d created with %d hidden neuron states\n", i, len(checkpoint))
+		}
+	}
+	return checkpoints
+}
+
+// ComputeOutputsFromFullCheckpoint restores the state of all hidden neurons from the checkpoint
+// and then returns the output neuron values.
+func (bp *Phase) ComputeOutputsFromFullCheckpoint(checkpoint map[int]map[string]interface{}) map[int]float64 {
+	// Reset non-input neurons.
+	bp.ResetNeuronValues()
+
+	// Restore state for every non-input neuron from the checkpoint.
+	for id, state := range checkpoint {
+		if neuron, exists := bp.Neurons[id]; exists {
+			bp.SetNeuronState(neuron, state)
+		}
+	}
+
+	// (Optionally) you might run a final propagation step if needed.
+	// For many feedforward networks, the output neurons' values are already restored.
+
+	// Collect output values.
+	outputs := make(map[int]float64)
+	for _, id := range bp.OutputNodes {
+		outputs[id] = bp.Neurons[id].Value
+	}
+	return outputs
+}
+
+// ComputeOutputsWithNewNeurons restores the checkpointed state and computes outputs with sample inputs
+func (bp *Phase) ComputeOutputsWithNewNeurons(checkpoint map[int]map[string]interface{}, inputs map[int]float64, timesteps int) map[int]float64 {
+	bp.ResetNeuronValues()
+
+	// Set sample-specific inputs
+	for id, value := range inputs {
+		if neuron, exists := bp.Neurons[id]; exists {
+			neuron.Value = value
+			if bp.Debug {
+				fmt.Printf("Input Neuron %d set to %f\n", id, value)
+			}
+		}
+	}
+
+	// Restore checkpointed state for non-input neurons
+	for id, state := range checkpoint {
+		if neuron, exists := bp.Neurons[id]; exists {
+			bp.SetNeuronState(neuron, state)
+			if bp.Debug {
+				fmt.Printf("Restored Neuron %d: Value=%f\n", id, neuron.Value)
+			}
+		}
+	}
+
+	// Check if there are any new neurons
+	hasNewNeurons := false
+	for _, neuron := range bp.Neurons {
+		if neuron.IsNew {
+			hasNewNeurons = true
+			break
+		}
+	}
+
+	// Process neurons over timesteps
+	for t := 0; t < timesteps; t++ {
+		if bp.Debug {
+			fmt.Printf("=== Processing Timestep %d ===\n", t)
+		}
+
+		if hasNewNeurons {
+			// First pass: only new neurons
+			for id := 1; id <= len(bp.Neurons); id++ {
+				neuron, exists := bp.Neurons[id]
+				if !exists || !neuron.IsNew {
+					continue
+				}
+				inputValues := bp.gatherInputs(neuron)
+				bp.ProcessNeuron(neuron, inputValues, t)
+				if bp.Debug {
+					fmt.Printf("Dense Neuron %d: Value=%f\n", id, neuron.Value)
+				}
+			}
+		}
+
+		// Second pass: output neurons
+		for _, id := range bp.OutputNodes {
+			neuron := bp.Neurons[id]
+			inputValues := bp.gatherInputs(neuron)
+			bp.ProcessNeuron(neuron, inputValues, t)
+			if bp.Debug {
+				fmt.Printf("Dense Neuron %d: Value=%f\n", id, neuron.Value)
+			}
+		}
+	}
+
+	return bp.GetOutputs()
+}
+
+// gatherInputs collects the weighted inputs from a neuron's upstream connections.
+// It returns a slice of float64 values representing the weighted contributions from source neurons.
+func (bp *Phase) gatherInputs(neuron *Neuron) []float64 {
+	inputValues := make([]float64, 0, len(neuron.Connections))
+	for _, conn := range neuron.Connections {
+		sourceID := int(conn[0]) // The ID of the source neuron
+		weight := conn[1]        // The connection weight
+		if sourceNeuron, exists := bp.Neurons[sourceID]; exists {
+			inputValues = append(inputValues, sourceNeuron.Value*weight)
+		} else {
+			// Handle missing source neuron (e.g., log a warning if debugging)
+			if bp.Debug {
+				fmt.Printf("Warning: Source neuron %d not found for neuron %d\n", sourceID, neuron.ID)
+			}
+			inputValues = append(inputValues, 0.0) // Default to zero contribution
+		}
+	}
+	return inputValues
+}
+
+// ComputeOutputsWithNewNeuronsFromCheckpoint computes outputs from a checkpoint, including contributions from new neurons.
+func (bp *Phase) ComputeOutputsWithNewNeuronsFromCheckpoint(checkpoint map[int]map[string]interface{}) map[int]float64 {
+	// Reset all neuron values to zero
+	bp.ResetNeuronValues()
+
+	// Restore states of neurons in the checkpoint
+	for id, state := range checkpoint {
+		if neuron, exists := bp.Neurons[id]; exists {
+			bp.SetNeuronState(neuron, state)
+			if bp.Debug {
+				fmt.Printf("Restored Neuron %d: Value=%f\n", id, neuron.Value)
+			}
+		}
+	}
+
+	// Process neurons not in the checkpoint (new neurons), excluding inputs
+	for id, neuron := range bp.Neurons {
+		if _, inCheckpoint := checkpoint[id]; !inCheckpoint && neuron.Type != "input" {
+			inputValues := bp.gatherInputs(neuron)
+			bp.ProcessNeuron(neuron, inputValues, 0)
+			if bp.Debug {
+				fmt.Printf("Processed new Neuron %d: Value=%f\n", id, neuron.Value)
+			}
+		}
+	}
+
+	// Process output neurons, incorporating all connections (old and new)
+	for _, id := range bp.OutputNodes {
+		neuron := bp.Neurons[id]
+		inputValues := bp.gatherInputs(neuron)
+		bp.ProcessNeuron(neuron, inputValues, 0)
+		if bp.Debug {
+			fmt.Printf("Processed output Neuron %d: Value=%f\n", id, neuron.Value)
+		}
+	}
+
+	// Return the output values
+	return bp.GetOutputs()
 }

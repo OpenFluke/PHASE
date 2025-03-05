@@ -440,3 +440,13 @@ func argmaxFloatSlice(vals []float64) int {
 	}
 	return maxIdx
 }
+
+// Utility: check if val is in slice
+func inSlice(val int, arr []int) bool {
+	for _, x := range arr {
+		if x == val {
+			return true
+		}
+	}
+	return false
+}

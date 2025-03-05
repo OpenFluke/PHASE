@@ -101,18 +101,29 @@ func (bp *Phase) AddRandomNeuron(neuronType string, activation string, minConnec
 // One approach: connect the new neuron to all existing output neurons,
 // so that their value now depends also on the new neuron.
 // Optionally, you can remove some existing direct connections to outputs to force dependency.
+// RewireOutputsThroughNewNeuron ensures the newly added neuron is
+// the *only* path from the old pre-output neurons to the outputs.
 func (bp *Phase) RewireOutputsThroughNewNeuron(newNeuronID int) {
 	for _, outID := range bp.OutputNodes {
-		// Before adding a connection, ensure it doesn't already exist
-		if !bp.connectionExists(newNeuronID, outID) {
-			// Add a new connection from the new neuron to the output neuron
-			weight := rand.NormFloat64() * 0.1
-			outNeuron := bp.Neurons[outID]
-			outNeuron.Connections = append(outNeuron.Connections, []float64{float64(newNeuronID), weight})
-			if bp.Debug {
-				fmt.Printf("Added connection from Neuron %d to Output Neuron %d (weight=%f)\n", newNeuronID, outID, weight)
+		outNeuron := bp.Neurons[outID]
+		var newConns [][]float64
+		// Keep only connections coming from neurons already marked as new
+		for _, conn := range outNeuron.Connections {
+			srcID := int(conn[0])
+			// If the source neuron is marked as new, keep its connection
+			if bp.Neurons[srcID].IsNew {
+				newConns = append(newConns, conn)
 			}
 		}
+		// Add a connection from the new neuron if it doesn't already exist.
+		if !bp.connectionExists(newNeuronID, outID) {
+			weight := rand.NormFloat64() * 0.1 // small random weight
+			newConns = append(newConns, []float64{float64(newNeuronID), weight})
+			if bp.Debug {
+				fmt.Printf("Added connection from new neuron %d to output neuron %d with weight %f\n", newNeuronID, outID, weight)
+			}
+		}
+		outNeuron.Connections = newConns
 	}
 }
 
