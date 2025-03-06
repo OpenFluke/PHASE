@@ -204,21 +204,26 @@ func (bp *Phase) TrainNetworkTargeted(inputs map[int]float64, expectedOutputs ma
 	}
 }
 
-func (bp *Phase) Grow(checkpointFolder string, originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
+func (bp *Phase) Grow(evalWithMultiCore bool, checkpointFolder string, originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
 	bestBP := originalBP.Copy()
 
 	var bestExactAcc float64
 	var bestClosenessBins []float64
 	var bestApproxScore float64
 
-	bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
+	// Choose evaluation method based on evalWithMultiCore
+	if evalWithMultiCore {
+		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, GetLabels(samples))
+	} else {
+		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
+	}
 	bestClosenessQuality := bp.ComputeClosenessQuality(bestClosenessBins)
+
 	consecutiveFailures := 0
 	iterations := 0
 	neuronsAdded := 0
 
 	for consecutiveFailures < maxConsecutiveFailures && iterations < maxIterations {
-
 		iterations++
 		currentBP := bestBP.Copy()
 		numToAdd := rand.Intn(10) + 5
@@ -235,8 +240,14 @@ func (bp *Phase) Grow(checkpointFolder string, originalBP *Phase, samples *[]Sam
 		var newClosenessBins []float64
 		var newApproxScore float64
 
-		newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
+		// Choose evaluation method again
+		if evalWithMultiCore {
+			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, GetLabels(samples))
+		} else {
+			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
+		}
 		newClosenessQuality := currentBP.ComputeClosenessQuality(newClosenessBins)
+
 		fmt.Printf("Sandbox %d, Iter %d: eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
 			workerID, iterations, newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)
 
@@ -263,7 +274,6 @@ func (bp *Phase) Grow(checkpointFolder string, originalBP *Phase, samples *[]Sam
 		} else {
 			consecutiveFailures++
 		}
-
 	}
 
 	fmt.Printf("Sandbox %d: Exited after %d iterations, %d consecutive failures, eA=%.4f, cQ=%.4f, aS=%.4f\n",

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"runtime"
 	"sort"
+	"sync"
 )
 
 // GetNeuronState captures the dynamic state of a neuron as a map.
@@ -155,6 +157,98 @@ func (bp *Phase) CheckpointPreOutputNeurons(checkpointFolder string, inputs []ma
 			fmt.Printf("Checkpoint %d created with %d pre-output neuron states\n", i, len(checkpoint))
 		}
 	}
+	return checkpoints
+}
+
+// CheckpointPreOutputNeuronsMultiCore computes pre-output neuron states and optionally saves them to files using multiple cores.
+// - checkpointFolder: If non-empty, saves checkpoints to files in this folder; if empty, returns them in-memory.
+// - inputs: Input data to process through the network.
+// - timesteps: Number of timesteps for the forward pass.
+// Returns an array of checkpoints; if saved to files, the array contains nil entries matching the input length.
+func (bp *Phase) CheckpointPreOutputNeuronsMultiCore(checkpointFolder string, inputs []map[int]float64, timesteps int) []map[int]map[string]interface{} {
+	checkpoints := make([]map[int]map[string]interface{}, len(inputs))
+
+	// Worker pool setup
+	numWorkers := int(float64(runtime.NumCPU()) * 0.8) // Use 80% of CPU cores
+	jobs := make(chan int, len(inputs))
+	results := make(chan struct {
+		index      int
+		checkpoint map[int]map[string]interface{}
+		err        error
+	}, len(inputs))
+	var wg sync.WaitGroup
+
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				// Each worker creates a fresh copy of the model to avoid race conditions
+				localBP := bp.Copy() // Assuming Copy() creates a deep copy of the Phase struct
+				inputMap := inputs[i]
+
+				// Run forward pass excluding output neurons
+				localBP.ForwardUpTo(inputMap, timesteps, localBP.OutputNodes)
+
+				// Compute the current set of pre-output neurons
+				preOutputIDs := localBP.GetPreOutputNeurons()
+
+				// Save their states
+				checkpoint := make(map[int]map[string]interface{})
+				for _, id := range preOutputIDs {
+					if neuron, exists := localBP.Neurons[id]; exists {
+						checkpoint[id] = localBP.GetNeuronState(neuron)
+					}
+				}
+
+				var err error
+				if checkpointFolder != "" {
+					// File mode: save to file
+					err = localBP.SaveCheckpoint(checkpointFolder, i, checkpoint)
+				}
+
+				results <- struct {
+					index      int
+					checkpoint map[int]map[string]interface{}
+					err        error
+				}{i, checkpoint, err}
+
+				if bp.Debug {
+					fmt.Printf("Checkpoint %d created with %d pre-output neuron states\n", i, len(checkpoint))
+				}
+			}
+		}()
+	}
+
+	// Send jobs
+	for i := 0; i < len(inputs); i++ {
+		jobs <- i
+	}
+	close(jobs)
+
+	// Collect results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Process results
+	for res := range results {
+		if checkpointFolder == "" {
+			// In-memory mode: store the checkpoint
+			checkpoints[res.index] = res.checkpoint
+		} else {
+			// File mode: check for errors and set to nil
+			if res.err != nil {
+				if bp.Debug {
+					fmt.Printf("Checkpoint %d: Failed to save: %v\n", res.index, res.err)
+				}
+			}
+			checkpoints[res.index] = nil // or make(map[int]map[string]interface{})
+		}
+	}
+
 	return checkpoints
 }
 
@@ -660,6 +754,165 @@ func (bp *Phase) EvaluateWithCheckpoints(checkpointFolder string, checkpoints *[
 		if bp.Debug {
 			fmt.Printf("Sample %d: Label=%d, Pred=%d, CorrectVal=%.4f, Outputs=%v\n", i, label, predClass, correctVal, vals)
 		}
+	}
+
+	// Compute final metrics
+	exactAcc = (exactMatches / float64(nSamples)) * 100.0
+	closenessBins = make([]float64, len(binCounts))
+	for i := range binCounts {
+		closenessBins[i] = (binCounts[i] / float64(nSamples)) * 100.0
+	}
+	approxScore = sumApprox
+
+	if bp.Debug {
+		fmt.Printf("Evaluation complete: ExactAcc=%.2f%%, ClosenessBins=%v, ApproxScore=%.2f\n", exactAcc, closenessBins, approxScore)
+	}
+
+	return exactAcc, closenessBins, approxScore
+}
+
+func (bp *Phase) EvaluateWithCheckpointsMultiCore(checkpointFolder string, checkpoints *[]map[int]map[string]interface{}, labels *[]float64) (exactAcc float64, closenessBins []float64, approxScore float64) {
+	nSamples := len(*checkpoints)
+	if nSamples == 0 || len(*labels) != nSamples {
+		return 0, nil, 0
+	}
+
+	numOutputs := len(bp.OutputNodes)
+	if numOutputs == 0 {
+		return 0, nil, 0
+	}
+
+	// Initialize metrics variables
+	thresholds := []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
+	binCounts := make([]float64, len(thresholds)+1)
+	exactMatches := float64(0)
+	sumApprox := float64(0)
+	sampleWeight := 100.0 / float64(nSamples)
+
+	// Worker pool setup
+	numWorkers := int(float64(runtime.NumCPU()) * 0.8)
+	jobs := make(chan int, nSamples)
+	results := make(chan struct {
+		exactMatch   float64
+		binIndex     int
+		approxCredit float64
+		err          error
+	}, nSamples)
+	var wg sync.WaitGroup
+
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				label := int((*labels)[i])
+				if label < 0 || label >= numOutputs {
+					if bp.Debug {
+						fmt.Printf("Sample %d: Invalid label %d (out of range 0-%d), skipping\n", i, label, numOutputs-1)
+					}
+					results <- struct {
+						exactMatch   float64
+						binIndex     int
+						approxCredit float64
+						err          error
+					}{0, -1, 0, nil}
+					continue
+				}
+
+				var outputs map[int]float64
+				if checkpointFolder == "" {
+					outputs = bp.ComputePartialOutputsFromCheckpoint((*checkpoints)[i])
+				} else {
+					checkpoint, err := bp.LoadCheckpoint(checkpointFolder, i)
+					if err != nil {
+						if bp.Debug {
+							fmt.Printf("Sample %d: Failed to load checkpoint: %v, skipping\n", i, err)
+						}
+						results <- struct {
+							exactMatch   float64
+							binIndex     int
+							approxCredit float64
+							err          error
+						}{0, -1, 0, err}
+						continue
+					}
+					outputs = bp.ComputePartialOutputsFromCheckpoint(checkpoint)
+				}
+
+				vals := make([]float64, numOutputs)
+				for j, outID := range bp.OutputNodes {
+					v := outputs[outID]
+					if math.IsNaN(v) || math.IsInf(v, 0) {
+						v = 0
+						if bp.Debug {
+							fmt.Printf("Sample %d: Output neuron %d value is NaN/Inf, set to 0\n", i, outID)
+						}
+					}
+					vals[j] = v
+				}
+
+				predClass := argmaxFloatSlice(vals)
+				exactMatch := 0.0
+				if predClass == label {
+					exactMatch = 1.0
+				}
+
+				correctVal := vals[label]
+				difference := math.Abs(correctVal - 1.0)
+				if difference > 1 {
+					difference = 1
+				}
+				ratio := difference
+				binIndex := len(thresholds) // Default to >90% bin
+				for k, th := range thresholds {
+					if ratio <= th {
+						binIndex = k
+						break
+					}
+				}
+
+				approx := bp.CalculatePercentageMatch(float64(label), float64(predClass))
+				partialCredit := approx / 100.0
+
+				if bp.Debug {
+					fmt.Printf("Sample %d: Label=%d, Pred=%d, CorrectVal=%.4f, Outputs=%v\n", i, label, predClass, correctVal, vals)
+				}
+
+				results <- struct {
+					exactMatch   float64
+					binIndex     int
+					approxCredit float64
+					err          error
+				}{exactMatch, binIndex, partialCredit * sampleWeight, nil}
+			}
+		}()
+	}
+
+	// Send jobs
+	for i := 0; i < nSamples; i++ {
+		jobs <- i
+	}
+	close(jobs)
+
+	// Collect results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var mu sync.Mutex
+	for res := range results {
+		if res.err != nil {
+			continue // Skip failed samples
+		}
+		mu.Lock()
+		exactMatches += res.exactMatch
+		if res.binIndex >= 0 {
+			binCounts[res.binIndex]++
+		}
+		sumApprox += res.approxCredit
+		mu.Unlock()
 	}
 
 	// Compute final metrics
