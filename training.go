@@ -204,14 +204,14 @@ func (bp *Phase) TrainNetworkTargeted(inputs map[int]float64, expectedOutputs ma
 	}
 }
 
-func (bp *Phase) Grow(originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
+func (bp *Phase) Grow(checkpointFolder string, originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
 	bestBP := originalBP.Copy()
 
 	var bestExactAcc float64
 	var bestClosenessBins []float64
 	var bestApproxScore float64
 
-	bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpoints, GetLabels(samples))
+	bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
 	bestClosenessQuality := bp.ComputeClosenessQuality(bestClosenessBins)
 	consecutiveFailures := 0
 	iterations := 0
@@ -235,7 +235,7 @@ func (bp *Phase) Grow(originalBP *Phase, samples *[]Sample, checkpoints *[]map[i
 		var newClosenessBins []float64
 		var newApproxScore float64
 
-		newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpoints, GetLabels(samples))
+		newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
 		newClosenessQuality := currentBP.ComputeClosenessQuality(newClosenessBins)
 		fmt.Printf("Sandbox %d, Iter %d: eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
 			workerID, iterations, newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)

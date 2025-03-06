@@ -117,7 +117,7 @@ func (bp *Phase) ForwardUpTo(inputs map[int]float64, timesteps int, exclude []in
 
 // CheckpointPreOutputNeurons computes up to pre-output neurons and saves their states.
 // It processes a batch of inputs and returns a slice of checkpoints.
-func (bp *Phase) CheckpointPreOutputNeurons(inputs []map[int]float64, timesteps int) []map[int]map[string]interface{} {
+func (bp *Phase) CheckpointPreOutputNeurons(checkpointFolder string, inputs []map[int]float64, timesteps int) []map[int]map[string]interface{} {
 	checkpoints := make([]map[int]map[string]interface{}, len(inputs))
 
 	for i, inputMap := range inputs {
@@ -134,7 +134,22 @@ func (bp *Phase) CheckpointPreOutputNeurons(inputs []map[int]float64, timesteps 
 				checkpoint[id] = bp.GetNeuronState(neuron)
 			}
 		}
-		checkpoints[i] = checkpoint
+
+		if checkpointFolder == "" {
+			// In-memory mode: store the checkpoint in the return array
+			checkpoints[i] = checkpoint
+		} else {
+			// File mode: save to file and leave the array entry empty
+			if err := bp.SaveCheckpoint(checkpointFolder, i, checkpoint); err != nil {
+				if bp.Debug {
+					fmt.Printf("Checkpoint %d: Failed to save: %v\n", i, err)
+				}
+				// Still add an empty map to maintain array length, even on error
+				checkpoints[i] = nil // or make(map[int]map[string]interface{})
+				continue
+			}
+			checkpoints[i] = nil // or make(map[int]map[string]interface{})
+		}
 
 		if bp.Debug {
 			fmt.Printf("Checkpoint %d created with %d pre-output neuron states\n", i, len(checkpoint))
@@ -555,7 +570,7 @@ func (bp *Phase) ComputePartialOutputsFromCheckpoint(checkpoint map[int]map[stri
 // 1. Exact accuracy: percentage of correct predictions (in [0, 100]).
 // 2. Closeness bins: distribution of how close the correct output is to 1.0 (10 bins, each in [0, 100]).
 // 3. Approximate score: weighted score awarding partial credit for near-correct predictions (in [0, 100]).
-func (bp *Phase) EvaluateWithCheckpoints(checkpoints *[]map[int]map[string]interface{}, labels *[]float64) (exactAcc float64, closenessBins []float64, approxScore float64) {
+func (bp *Phase) EvaluateWithCheckpoints(checkpointFolder string, checkpoints *[]map[int]map[string]interface{}, labels *[]float64) (exactAcc float64, closenessBins []float64, approxScore float64) {
 	nSamples := len(*checkpoints) // Dereference to get the length
 	if nSamples == 0 || len(*labels) != nSamples {
 		return 0, nil, 0
@@ -584,7 +599,19 @@ func (bp *Phase) EvaluateWithCheckpoints(checkpoints *[]map[int]map[string]inter
 		}
 
 		// Compute outputs using the pre-output checkpoint
-		outputs := bp.ComputePartialOutputsFromCheckpoint(checkpoint)
+		var outputs map[int]float64
+		if checkpointFolder == "" {
+			outputs = bp.ComputePartialOutputsFromCheckpoint(checkpoint)
+		} else {
+			checkpoint, err := bp.LoadCheckpoint(checkpointFolder, i)
+			if err != nil {
+				if bp.Debug {
+					fmt.Printf("Sample %d: Failed to load checkpoint: %v, skipping\n", i, err)
+				}
+				continue
+			}
+			outputs = bp.ComputePartialOutputsFromCheckpoint(checkpoint)
+		}
 
 		// Convert outputs map to slice aligned with OutputNodes
 		vals := make([]float64, numOutputs)
