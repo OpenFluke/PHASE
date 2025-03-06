@@ -3,6 +3,7 @@ package phase
 import "math/rand"
 
 type ModelResult struct {
+	BP            *Phase
 	ExactAcc      float64   // Exact accuracy in [0, 100]
 	ClosenessBins []float64 // Closeness bins in [0, 100] per bin
 	ApproxScore   float64   // Approx score in [0, 100]

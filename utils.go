@@ -450,3 +450,23 @@ func inSlice(val int, arr []int) bool {
 	}
 	return false
 }
+
+func GetLabels(samples *[]Sample) *[]float64 {
+	labels := make([]float64, len(*samples)) // Allocate the slice once
+	for i, sample := range *samples {        // Dereference samples to access the slice
+		labels[i] = float64(sample.Label)
+	}
+	return &labels // Return a pointer to the allocated slice
+}
+
+func FormatClosenessBins(bins []float64) string {
+	s := "["
+	for i, bin := range bins {
+		if i > 0 {
+			s += ", "
+		}
+		s += fmt.Sprintf("%.2f", bin)
+	}
+	s += "]"
+	return s
+}

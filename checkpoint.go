@@ -549,3 +549,103 @@ func (bp *Phase) ComputePartialOutputsFromCheckpoint(checkpoint map[int]map[stri
 	}
 	return bp.GetOutputs()
 }
+
+// EvaluateWithCheckpoints evaluates the model's performance using precomputed pre-output checkpoints.
+// It computes three metrics:
+// 1. Exact accuracy: percentage of correct predictions (in [0, 100]).
+// 2. Closeness bins: distribution of how close the correct output is to 1.0 (10 bins, each in [0, 100]).
+// 3. Approximate score: weighted score awarding partial credit for near-correct predictions (in [0, 100]).
+func (bp *Phase) EvaluateWithCheckpoints(checkpoints *[]map[int]map[string]interface{}, labels *[]float64) (exactAcc float64, closenessBins []float64, approxScore float64) {
+	nSamples := len(*checkpoints) // Dereference to get the length
+	if nSamples == 0 || len(*labels) != nSamples {
+		return 0, nil, 0
+	}
+
+	numOutputs := len(bp.OutputNodes)
+	if numOutputs == 0 {
+		return 0, nil, 0
+	}
+
+	// Initialize metrics variables
+	thresholds := []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
+	binCounts := make([]float64, len(thresholds)+1)
+	exactMatches := 0.0
+	sumApprox := 0.0
+	sampleWeight := 100.0 / float64(nSamples)
+
+	// Process each sample using the checkpoint
+	for i, checkpoint := range *checkpoints { // Dereference checkpoints
+		label := int((*labels)[i]) // Dereference labels and access the i-th element
+		if label < 0 || label >= numOutputs {
+			if bp.Debug {
+				fmt.Printf("Sample %d: Invalid label %d (out of range 0-%d), skipping\n", i, label, numOutputs-1)
+			}
+			continue
+		}
+
+		// Compute outputs using the pre-output checkpoint
+		outputs := bp.ComputePartialOutputsFromCheckpoint(checkpoint)
+
+		// Convert outputs map to slice aligned with OutputNodes
+		vals := make([]float64, numOutputs)
+		for j, outID := range bp.OutputNodes {
+			v := outputs[outID]
+			if math.IsNaN(v) || math.IsInf(v, 0) {
+				v = 0
+				if bp.Debug {
+					fmt.Printf("Sample %d: Output neuron %d value is NaN/Inf, set to 0\n", i, outID)
+				}
+			}
+			vals[j] = v
+		}
+
+		// Exact Accuracy: Check if argmax matches label
+		predClass := argmaxFloatSlice(vals)
+		if predClass == label {
+			exactMatches++
+		}
+
+		// Closeness Bins: Measure how close the correct output is to 1.0
+		correctVal := vals[label]
+		difference := math.Abs(correctVal - 1.0)
+		if difference > 1 {
+			difference = 1 // Clamp difference to [0, 1]
+		}
+		ratio := difference
+
+		assigned := false
+		for k, th := range thresholds {
+			if ratio <= th {
+				binCounts[k]++
+				assigned = true
+				break
+			}
+		}
+		if !assigned {
+			binCounts[len(thresholds)]++ // >90% bin
+		}
+
+		// Approximate Score: Award partial credit
+		approx := bp.CalculatePercentageMatch(float64(label), float64(predClass))
+		partialCredit := approx / 100.0
+		sumApprox += partialCredit * sampleWeight
+
+		if bp.Debug {
+			fmt.Printf("Sample %d: Label=%d, Pred=%d, CorrectVal=%.4f, Outputs=%v\n", i, label, predClass, correctVal, vals)
+		}
+	}
+
+	// Compute final metrics
+	exactAcc = (exactMatches / float64(nSamples)) * 100.0
+	closenessBins = make([]float64, len(binCounts))
+	for i := range binCounts {
+		closenessBins[i] = (binCounts[i] / float64(nSamples)) * 100.0
+	}
+	approxScore = sumApprox
+
+	if bp.Debug {
+		fmt.Printf("Evaluation complete: ExactAcc=%.2f%%, ClosenessBins=%v, ApproxScore=%.2f\n", exactAcc, closenessBins, approxScore)
+	}
+
+	return exactAcc, closenessBins, approxScore
+}

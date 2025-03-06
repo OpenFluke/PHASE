@@ -1,8 +1,16 @@
 package phase
 
 import (
+	"fmt"
 	"math"
+	"math/rand"
+	"strings"
 )
+
+type Sample struct {
+	Inputs map[int]float64
+	Label  int
+}
 
 // TrainNetwork trains the network using backpropagation.
 func (bp *Phase) TrainNetwork(inputs map[int]float64, expectedOutputs map[int]float64, learningRate float64, clampMin float64, clampMax float64) {
@@ -193,5 +201,78 @@ func (bp *Phase) TrainNetworkTargeted(inputs map[int]float64, expectedOutputs ma
 				}
 			}
 		}
+	}
+}
+
+func (bp *Phase) Grow(originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
+	bestBP := originalBP.Copy()
+
+	var bestExactAcc float64
+	var bestClosenessBins []float64
+	var bestApproxScore float64
+
+	bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpoints, GetLabels(samples))
+	bestClosenessQuality := bp.ComputeClosenessQuality(bestClosenessBins)
+	consecutiveFailures := 0
+	iterations := 0
+	neuronsAdded := 0
+
+	for consecutiveFailures < maxConsecutiveFailures && iterations < maxIterations {
+
+		iterations++
+		currentBP := bestBP.Copy()
+		numToAdd := rand.Intn(10) + 5
+
+		for i := 0; i < numToAdd; i++ {
+			newNeuron := currentBP.AddNeuronFromPreOutputs("dense", "", minConnections, maxConnections)
+			if newNeuron != nil {
+				currentBP.AddNewNeuronToOutput(newNeuron.ID)
+				neuronsAdded++
+			}
+		}
+
+		var newExactAcc float64
+		var newClosenessBins []float64
+		var newApproxScore float64
+
+		newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpoints, GetLabels(samples))
+		newClosenessQuality := currentBP.ComputeClosenessQuality(newClosenessBins)
+		fmt.Printf("Sandbox %d, Iter %d: eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
+			workerID, iterations, newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)
+
+		improvedMetrics := []string{}
+		if newExactAcc > bestExactAcc+epsilon {
+			improvedMetrics = append(improvedMetrics, "eA")
+		}
+		if newClosenessQuality > bestClosenessQuality+epsilon {
+			improvedMetrics = append(improvedMetrics, "cQ")
+		}
+		if newApproxScore > bestApproxScore+epsilon {
+			improvedMetrics = append(improvedMetrics, "aS")
+		}
+
+		if len(improvedMetrics) > 0 {
+			fmt.Printf("Sandbox %d: Improvement at Iter %d (%s): eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
+				workerID, iterations, strings.Join(improvedMetrics, ", "), newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)
+			bestBP = currentBP
+			bestExactAcc = newExactAcc
+			bestClosenessBins = newClosenessBins
+			bestClosenessQuality = newClosenessQuality
+			bestApproxScore = newApproxScore
+			consecutiveFailures = 0
+		} else {
+			consecutiveFailures++
+		}
+
+	}
+
+	fmt.Printf("Sandbox %d: Exited after %d iterations, %d consecutive failures, eA=%.4f, cQ=%.4f, aS=%.4f\n",
+		workerID, iterations, consecutiveFailures, bestExactAcc, bestClosenessQuality, bestApproxScore)
+	return ModelResult{
+		BP:            bestBP,
+		ExactAcc:      bestExactAcc,
+		ClosenessBins: bestClosenessBins,
+		ApproxScore:   bestApproxScore,
+		NeuronsAdded:  neuronsAdded,
 	}
 }
