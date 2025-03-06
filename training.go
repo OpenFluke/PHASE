@@ -204,7 +204,7 @@ func (bp *Phase) TrainNetworkTargeted(inputs map[int]float64, expectedOutputs ma
 	}
 }
 
-func (bp *Phase) Grow(evalWithMultiCore bool, checkpointFolder string, originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
+func (bp *Phase) Grow(minNeuronsToAdd int, maxNeuronsToAdd int, evalWithMultiCore bool, checkpointFolder string, originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
 	bestBP := originalBP.Copy()
 
 	var bestExactAcc float64
@@ -226,7 +226,7 @@ func (bp *Phase) Grow(evalWithMultiCore bool, checkpointFolder string, originalB
 	for consecutiveFailures < maxConsecutiveFailures && iterations < maxIterations {
 		iterations++
 		currentBP := bestBP.Copy()
-		numToAdd := rand.Intn(10) + 5
+		numToAdd := rand.Intn(maxNeuronsToAdd-minNeuronsToAdd+1) + minNeuronsToAdd
 
 		for i := 0; i < numToAdd; i++ {
 			newNeuron := currentBP.AddNeuronFromPreOutputs("dense", "", minConnections, maxConnections)
