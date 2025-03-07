@@ -2,6 +2,7 @@ package phase
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 )
 
@@ -95,4 +96,19 @@ func (bp *Phase) ComputeClosenessQuality(bins []float64) float64 {
 		quality += bins[i] * weights[i]
 	}
 	return quality
+}
+
+func (bp *Phase) SelectBestModel(results []ModelResult, currentExactAcc, currentClosenessQuality, currentApproxScore float64) (ModelResult, float64) {
+	var bestModel ModelResult
+	bestImprovement := -math.MaxFloat64 // Start with the lowest possible value
+
+	for _, model := range results {
+		improvement := bp.ComputeTotalImprovement(model, currentExactAcc, currentClosenessQuality, currentApproxScore)
+		if improvement > bestImprovement {
+			bestImprovement = improvement
+			bestModel = model
+		}
+	}
+
+	return bestModel, bestImprovement
 }
