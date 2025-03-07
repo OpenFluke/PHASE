@@ -301,51 +301,90 @@ func (bp *Phase) ComputeOutputsFromCheckpoint(checkpoint map[int]map[string]inte
 // are taken from a random subset of the pre-output neurons, then adds a connection
 // from the new neuron to every output neuron (without removing existing connections).
 func (bp *Phase) AddNeuronFromPreOutputs(neuronType, activation string, minConnections, maxConnections int) *Neuron {
-	// If no activation is provided, choose one randomly.
+	// If no activation is provided, choose one randomly from a predefined list.
 	if activation == "" {
 		activation = possibleActivations[rand.Intn(len(possibleActivations))]
 	}
 
-	// Get the IDs of neurons that feed into outputs.
-	preOutputIDs := bp.GetPreOutputNeurons()
-	if len(preOutputIDs) == 0 {
-		return nil
+	// If no neuron type is provided, choose one randomly from a predefined list.
+	if neuronType == "" {
+		neuronType = neuronTypes[rand.Intn(len(neuronTypes))]
 	}
 
-	// Determine the number of incoming connections.
+	// Get the IDs of neurons that feed into the output layer.
+	preOutputIDs := bp.GetPreOutputNeurons()
+	if len(preOutputIDs) == 0 {
+		return nil // Cannot add a neuron if there are no pre-output neurons.
+	}
+
+	// Determine the number of incoming connections, constrained by available neurons.
 	numConns := rand.Intn(maxConnections-minConnections+1) + minConnections
 	if numConns > len(preOutputIDs) {
 		numConns = len(preOutputIDs)
 	}
 
-	// Shuffle and select a subset.
+	// Shuffle the pre-output neuron IDs and select a subset for connections.
 	rand.Shuffle(len(preOutputIDs), func(i, j int) {
 		preOutputIDs[i], preOutputIDs[j] = preOutputIDs[j], preOutputIDs[i]
 	})
 	selectedIDs := preOutputIDs[:numConns]
 
-	// Create the new neuron.
+	// Create the new neuron with basic properties.
 	newID := bp.GetNextNeuronID()
 	newNeuron := &Neuron{
 		ID:          newID,
 		Type:        neuronType,
-		Bias:        rand.NormFloat64() * 0.1, // small random bias
+		Bias:        rand.NormFloat64() * 0.1, // Small random bias
 		Activation:  activation,
 		Connections: make([][]float64, 0, numConns),
-		IsNew:       true, // Mark as new
+		IsNew:       true, // Mark as newly added
 	}
 
-	// Add incoming connections from the selected pre-output neurons.
+	// Add incoming connections from the selected pre-output neurons with small random weights.
 	for _, srcID := range selectedIDs {
 		weight := rand.NormFloat64() * 0.1
 		newNeuron.Connections = append(newNeuron.Connections, []float64{float64(srcID), weight})
 	}
 
-	// Add the new neuron to the network.
+	// Initialize type-specific parameters based on neuronType.
+	switch neuronType {
+	case "lstm":
+		// Initialize gate weights for LSTM neurons based on the number of connections.
+		conCount := len(newNeuron.Connections)
+		newNeuron.GateWeights = map[string][]float64{
+			"input":  bp.RandomWeights(conCount), // Random weights for input gate
+			"forget": bp.RandomWeights(conCount), // Random weights for forget gate
+			"output": bp.RandomWeights(conCount), // Random weights for output gate
+			"cell":   bp.RandomWeights(conCount), // Random weights for cell gate
+		}
+	case "cnn":
+		// Randomize the number of kernels between 1 and 10 for CNN neurons.
+		numKernels := rand.Intn(10) + 1 // Generates a random integer from 1 to 10
+		newNeuron.Kernels = make([][]float64, numKernels)
+		for i := 0; i < numKernels; i++ {
+			// Initialize each kernel as a 2x2 matrix with random values.
+			kernel := make([]float64, 4) // 2x2 = 4 elements
+			for j := 0; j < 4; j++ {
+				kernel[j] = rand.Float64() // Random float between 0 and 1
+			}
+			newNeuron.Kernels[i] = kernel
+		}
+	case "batch_norm":
+		// Initialize batch normalization parameters.
+		newNeuron.BatchNormParams = &BatchNormParams{
+			Gamma: 1.0, // Scaling factor
+			Beta:  0.0, // Shift factor
+			Mean:  0.0, // Running mean
+			Var:   1.0, // Running variance
+		}
+	default:
+		// For "dense" or unrecognized types, no additional initialization is required.
+	}
+
+	// Add the new neuron to the network's neuron map.
 	bp.Neurons[newID] = newNeuron
 
-	// Instead of rewiring (removing existing connections), simply add an extra connection
-	// from the new neuron to every output neuron.
+	// Connect the new neuron to every output neuron.
 	bp.AddNewNeuronToOutput(newID)
 
 	return newNeuron
@@ -655,6 +694,10 @@ func (bp *Phase) ComputePartialOutputsFromCheckpoint(checkpoint map[int]map[stri
 		neuron := bp.Neurons[outID]
 		inputValues := bp.gatherInputs(neuron)
 		bp.ProcessNeuron(neuron, inputValues, 0)
+	}
+	// Apply softmax if the output neurons use "softmax" activation.
+	if len(bp.OutputNodes) > 0 && bp.Neurons[bp.OutputNodes[0]].Activation == "softmax" {
+		bp.ApplySoftmax()
 	}
 	return bp.GetOutputs()
 }

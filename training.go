@@ -274,6 +274,28 @@ func (bp *Phase) Grow(minNeuronsToAdd int, maxNeuronsToAdd int, evalWithMultiCor
 		} else {
 			consecutiveFailures++
 		}
+
+		// Create a ModelResult for the new model to compute improvement
+		/*newResult := ModelResult{
+			ExactAcc:      newExactAcc,
+			ClosenessBins: newClosenessBins,
+			ApproxScore:   newApproxScore,
+		}
+
+		improvement := bp.ComputeTotalImprovement(newResult, bestExactAcc, bestClosenessQuality, bestApproxScore)
+		// Accept the new model if total improvement is positive
+		if improvement > 0 {
+			fmt.Printf("Sandbox %d: Improvement at Iter %d: Total Improvement=%.4f, eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
+				workerID, iterations, improvement, newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)
+			bestBP = currentBP
+			bestExactAcc = newExactAcc
+			bestClosenessBins = newClosenessBins
+			bestClosenessQuality = newClosenessQuality
+			bestApproxScore = newApproxScore
+			consecutiveFailures = 0
+		} else {
+			consecutiveFailures++
+		}*/
 	}
 
 	fmt.Printf("Sandbox %d: Exited after %d iterations, %d consecutive failures, eA=%.4f, cQ=%.4f, aS=%.4f\n",
