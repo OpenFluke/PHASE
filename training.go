@@ -420,6 +420,197 @@ func (bp *Phase) OptimizeNewNeuronParameters(newNeuronID int, checkpoints []map[
 	//	newNeuronID, currentExactAcc, currentClosenessQuality, currentApproxScore)
 }
 
+// AdaptiveOptimizeNewNeuronParameters performs perturbation-based optimization on a new neuron,
+// adapting the sigma value based on the improvement measured by ComputeTotalImprovement.
+func (bp *Phase) AdaptiveOptimizeNewNeuronParameters(newNeuronID int, checkpoints []map[int]map[string]interface{}, labels []float64, numPerturbations int, initialSigma float64, maxIterations int, improvementThreshold float64) {
+	// Retrieve the initial parameters of the neuron.
+	currentParams := bp.GetNewNeuronParameters(newNeuronID)
+
+	// Evaluate initial network metrics.
+	currentExactAcc, currentClosenessBins, currentApproxScore := bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+	currentClosenessQuality := bp.ComputeClosenessQuality(currentClosenessBins)
+
+	// Set sigma to the initial value.
+	currentSigma := initialSigma
+
+	for iter := 0; iter < maxIterations; iter++ {
+		bestImprovement := 0.0
+		bestParams := make([]float64, len(currentParams))
+		copy(bestParams, currentParams)
+
+		// Try several perturbations.
+		for i := 0; i < numPerturbations; i++ {
+			// Generate a delta vector with each element drawn from N(0, currentSigma).
+			delta := make([]float64, len(currentParams))
+			for j := range delta {
+				delta[j] = rand.NormFloat64() * currentSigma
+			}
+			// Create perturbed parameters.
+			perturbedParams := make([]float64, len(currentParams))
+			for j := range perturbedParams {
+				perturbedParams[j] = currentParams[j] + delta[j]
+			}
+
+			// Set the new neuron parameters temporarily.
+			bp.SetNewNeuronParameters(newNeuronID, perturbedParams)
+
+			// Evaluate network metrics with these new parameters.
+			newExactAcc, newClosenessBins, newApproxScore := bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+			//newClosenessQuality := bp.ComputeClosenessQuality(newClosenessBins)
+
+			// Compute improvement based on the improvement metric.
+			improvement := bp.ComputeTotalImprovement(ModelResult{
+				ExactAcc:      newExactAcc,
+				ClosenessBins: newClosenessBins,
+				ApproxScore:   newApproxScore,
+			}, currentExactAcc, currentClosenessQuality, currentApproxScore)
+
+			// If this perturbation gives a better improvement, store these parameters.
+			if improvement > bestImprovement {
+				bestImprovement = improvement
+				copy(bestParams, perturbedParams)
+			}
+		}
+
+		// If an improvement was found, update current parameters and adjust sigma.
+		if bestImprovement > 0 {
+			currentParams = bestParams
+			bp.SetNewNeuronParameters(newNeuronID, bestParams)
+			currentExactAcc, currentClosenessBins, currentApproxScore = bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+			currentClosenessQuality = bp.ComputeClosenessQuality(currentClosenessBins)
+
+			// If the improvement is strong enough, reduce sigma for fine-tuning;
+			// otherwise, increase sigma to explore more.
+			if bestImprovement >= improvementThreshold {
+				currentSigma *= 0.9 // decrease sigma
+			} else {
+				currentSigma *= 1.1 // increase sigma
+			}
+
+			fmt.Printf("Neuron %d, Iteration %d: Improvement=%.4f, new sigma=%.6f\n", newNeuronID, iter, bestImprovement, currentSigma)
+		} else {
+			fmt.Printf("Neuron %d, Iteration %d: No improvement found, stopping optimization.\n", newNeuronID, iter)
+			break
+		}
+	}
+}
+
+// vectorNorm returns the Euclidean norm of a vector.
+func vectorNorm(vec []float64) float64 {
+	sum := 0.0
+	for _, v := range vec {
+		sum += v * v
+	}
+	return math.Sqrt(sum)
+}
+
+// AdaptiveOptimizeNewNeuronParametersV2 uses multiple perturbations to estimate a weighted update direction.
+// It aggregates the perturbation deltas using their improvement (as computed by ComputeTotalImprovement)
+// and then updates the neuron's parameters accordingly. It also adapts sigma based on the norm of the update.
+func (bp *Phase) AdaptiveOptimizeNewNeuronParametersV2(newNeuronID int, checkpoints []map[int]map[string]interface{}, labels []float64, numPerturbations int, initialSigma float64, maxIterations int, alpha float64) {
+	// Get the current parameters of the neuron.
+	currentParams := bp.GetNewNeuronParameters(newNeuronID)
+	
+	// Evaluate baseline metrics.
+	currentExactAcc, currentClosenessBins, currentApproxScore := bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+	currentClosenessQuality := bp.ComputeClosenessQuality(currentClosenessBins)
+	
+	// Start with the given sigma.
+	currentSigma := initialSigma
+	
+	for iter := 0; iter < maxIterations; iter++ {
+		// Accumulate weighted perturbation vectors.
+		totalWeightedDelta := make([]float64, len(currentParams))
+		totalWeight := 0.0
+		
+		// Perform a number of perturbations.
+		for i := 0; i < numPerturbations; i++ {
+			// Generate a random perturbation delta vector.
+			delta := make([]float64, len(currentParams))
+			for j := range delta {
+				delta[j] = rand.NormFloat64() * currentSigma
+			}
+			
+			// Compute candidate parameters: current + delta.
+			candidateParams := make([]float64, len(currentParams))
+			for j := 0; j < len(currentParams); j++ {
+				candidateParams[j] = currentParams[j] + delta[j]
+			}
+			
+			// Set the candidate parameters temporarily.
+			bp.SetNewNeuronParameters(newNeuronID, candidateParams)
+			
+			// Evaluate the candidate metrics.
+			newExactAcc, newClosenessBins, newApproxScore := bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+			//newClosenessQuality := bp.ComputeClosenessQuality(newClosenessBins)
+			
+			// Form a candidate result structure.
+			candidateResult := ModelResult{
+				ExactAcc:      newExactAcc,
+				ClosenessBins: newClosenessBins,
+				ApproxScore:   newApproxScore,
+			}
+			
+			// Compute the improvement over the baseline.
+			improvement := bp.ComputeTotalImprovement(candidateResult, currentExactAcc, currentClosenessQuality, currentApproxScore)
+			if improvement < 0 {
+				improvement = 0 // Only consider positive improvements.
+			}
+			
+			// Weight the delta vector by the improvement.
+			for j := 0; j < len(delta); j++ {
+				totalWeightedDelta[j] += delta[j] * improvement
+			}
+			totalWeight += improvement
+		}
+		
+		// If we got any positive improvements, update the parameters.
+		if totalWeight > 0 {
+			// Compute the weighted average update.
+			updateDelta := make([]float64, len(currentParams))
+			for j := 0; j < len(currentParams); j++ {
+				updateDelta[j] = alpha * (totalWeightedDelta[j] / totalWeight)
+			}
+			
+			// Update the current parameters.
+			for j := 0; j < len(currentParams); j++ {
+				currentParams[j] += updateDelta[j]
+			}
+			bp.SetNewNeuronParameters(newNeuronID, currentParams)
+			
+			// Re-evaluate metrics with the updated parameters.
+			newExactAcc, newClosenessBins, newApproxScore := bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+			newClosenessQuality := bp.ComputeClosenessQuality(newClosenessBins)
+			overallImprovement := bp.ComputeTotalImprovement(ModelResult{
+				ExactAcc:      newExactAcc,
+				ClosenessBins: newClosenessBins,
+				ApproxScore:   newApproxScore,
+			}, currentExactAcc, currentClosenessQuality, currentApproxScore)
+			
+			// Print iteration details.
+			fmt.Printf("Neuron %d, Iteration %d: Update norm=%.6f, Improvement=%.6f\n", newNeuronID, iter, vectorNorm(updateDelta), overallImprovement)
+			
+			// Update the baseline metrics if improvement was seen.
+			if overallImprovement > 0 {
+				currentExactAcc = newExactAcc
+				currentClosenessQuality = newClosenessQuality
+				currentApproxScore = newApproxScore
+			}
+			
+			// Adapt sigma based on the magnitude of the update.
+			if vectorNorm(updateDelta) < 0.0001 {
+				currentSigma *= 0.9 // Reduce sigma for fine-tuning.
+			} else {
+				currentSigma *= 1.05 // Increase sigma slightly to explore further.
+			}
+		} else {
+			fmt.Printf("Neuron %d, Iteration %d: No positive weighted improvement, stopping optimization.\n", newNeuronID, iter)
+			break
+		}
+	}
+}
+
+
 // GetNewNeuronParameters retrieves the parameters (incoming weights, bias, outgoing weights) of a neuron.
 func (bp *Phase) GetNewNeuronParameters(newNeuronID int) []float64 {
 	newNeuron := bp.Neurons[newNeuronID]
