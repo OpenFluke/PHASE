@@ -13,6 +13,11 @@ var scalarActivationFunctions = map[string]ActivationFunc{
 	"leaky_relu": LeakyReLU,
 	"elu":        ELU,
 	"linear":     Linear,
+
+	"smooth_relu": SmoothReLU,
+	"wavelet_act": WaveletAct,
+	"cauchy_act":  CauchyAct,
+	"asym_act":    func(x float64) float64 { return AsymAct(x, 0.1) },
 }
 
 // ReLU activation function
@@ -59,4 +64,35 @@ func InitializeActivationFunctions() map[string]ActivationFunc {
 // InitializeActivationFunctions initializes the ScalarActivationMap
 func (bp *Phase) InitializeActivationFunctions() {
 	bp.ScalarActivationMap = InitializeActivationFunctions()
+}
+
+// SmoothReLU activation function
+func SmoothReLU(x float64) float64 {
+	return x / (1 + math.Exp(-x))
+}
+
+// ParamReLU activation function
+func ParamReLU(x, a, b float64) float64 {
+	if x > 0 {
+		return a * x
+	}
+	return b * (-x)
+}
+
+// WaveletAct activation function
+func WaveletAct(x float64) float64 {
+	return (1 - x*x) * math.Exp(-x*x/2)
+}
+
+// AsymAct activation function with fixed a
+func AsymAct(x, a float64) float64 {
+	if x > 0 {
+		return x
+	}
+	return a * x * x
+}
+
+// CauchyAct activation function
+func CauchyAct(x float64) float64 {
+	return (1/math.Pi)*math.Atan(x) + 0.5
 }

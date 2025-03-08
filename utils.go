@@ -451,12 +451,30 @@ func inSlice(val int, arr []int) bool {
 	return false
 }
 
-func GetLabels(samples *[]Sample) *[]float64 {
-	labels := make([]float64, len(*samples)) // Allocate the slice once
-	for i, sample := range *samples {        // Dereference samples to access the slice
-		labels[i] = float64(sample.Label)
+// GetLabels extracts labels from ExpectedOutputs for classification tasks.
+// It assumes ExpectedOutputs is one-hot encoded and returns the index of the neuron with value 1.0.
+func GetLabels(samples *[]Sample, outputNodes []int) *[]float64 {
+	labels := make([]float64, len(*samples))
+	for i, sample := range *samples {
+		label := getLabelFromExpectedOutputs(sample.ExpectedOutputs, outputNodes)
+		if label == -1 {
+			log.Printf("Warning: Sample %d has invalid or missing expected outputs", i)
+			labels[i] = -1 // Handle invalid cases
+		} else {
+			labels[i] = float64(label)
+		}
 	}
-	return &labels // Return a pointer to the allocated slice
+	return &labels
+}
+
+// getLabelFromExpectedOutputs finds the index of the output neuron with expected value 1.0.
+func getLabelFromExpectedOutputs(expectedOutputs map[int]float64, outputNodes []int) int {
+	for i, nodeID := range outputNodes {
+		if expected, exists := expectedOutputs[nodeID]; exists && expected == 1.0 {
+			return i
+		}
+	}
+	return -1 // Return -1 if no label is found
 }
 
 func FormatClosenessBins(bins []float64) string {

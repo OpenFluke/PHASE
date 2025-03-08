@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"strings"
 )
 
 type Sample struct {
-	Inputs map[int]float64
-	Label  int
+	Inputs          map[int]float64
+	ExpectedOutputs map[int]float64 // Replaces Label; maps neuron IDs to target values
 }
 
 // TrainNetwork trains the network using backpropagation.
@@ -211,11 +210,10 @@ func (bp *Phase) Grow(minNeuronsToAdd int, maxNeuronsToAdd int, evalWithMultiCor
 	var bestClosenessBins []float64
 	var bestApproxScore float64
 
-	// Choose evaluation method based on evalWithMultiCore
 	if evalWithMultiCore {
-		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, GetLabels(samples))
+		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, GetLabels(samples, bestBP.OutputNodes))
 	} else {
-		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
+		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples, bestBP.OutputNodes))
 	}
 	bestClosenessQuality := bp.ComputeClosenessQuality(bestClosenessBins)
 
@@ -240,50 +238,23 @@ func (bp *Phase) Grow(minNeuronsToAdd int, maxNeuronsToAdd int, evalWithMultiCor
 		var newClosenessBins []float64
 		var newApproxScore float64
 
-		// Choose evaluation method again
 		if evalWithMultiCore {
-			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, GetLabels(samples))
+			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, GetLabels(samples, currentBP.OutputNodes))
 		} else {
-			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples))
+			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, GetLabels(samples, currentBP.OutputNodes))
 		}
 		newClosenessQuality := currentBP.ComputeClosenessQuality(newClosenessBins)
 
 		fmt.Printf("Sandbox %d, Iter %d: eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
 			workerID, iterations, newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)
 
-		improvedMetrics := []string{}
-		if newExactAcc > bestExactAcc+epsilon {
-			improvedMetrics = append(improvedMetrics, "eA")
-		}
-		if newClosenessQuality > bestClosenessQuality+epsilon {
-			improvedMetrics = append(improvedMetrics, "cQ")
-		}
-		if newApproxScore > bestApproxScore+epsilon {
-			improvedMetrics = append(improvedMetrics, "aS")
-		}
-
-		if len(improvedMetrics) > 0 {
-			fmt.Printf("Sandbox %d: Improvement at Iter %d (%s): eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
-				workerID, iterations, strings.Join(improvedMetrics, ", "), newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)
-			bestBP = currentBP
-			bestExactAcc = newExactAcc
-			bestClosenessBins = newClosenessBins
-			bestClosenessQuality = newClosenessQuality
-			bestApproxScore = newApproxScore
-			consecutiveFailures = 0
-		} else {
-			consecutiveFailures++
-		}
-
-		// Create a ModelResult for the new model to compute improvement
-		/*newResult := ModelResult{
+		newResult := ModelResult{
 			ExactAcc:      newExactAcc,
 			ClosenessBins: newClosenessBins,
 			ApproxScore:   newApproxScore,
 		}
 
 		improvement := bp.ComputeTotalImprovement(newResult, bestExactAcc, bestClosenessQuality, bestApproxScore)
-		// Accept the new model if total improvement is positive
 		if improvement > 0 {
 			fmt.Printf("Sandbox %d: Improvement at Iter %d: Total Improvement=%.4f, eA=%.4f, cQ=%.4f, aS=%.4f, Neurons=%d\n",
 				workerID, iterations, improvement, newExactAcc, newClosenessQuality, newApproxScore, neuronsAdded)
@@ -295,7 +266,7 @@ func (bp *Phase) Grow(minNeuronsToAdd int, maxNeuronsToAdd int, evalWithMultiCor
 			consecutiveFailures = 0
 		} else {
 			consecutiveFailures++
-		}*/
+		}
 	}
 
 	fmt.Printf("Sandbox %d: Exited after %d iterations, %d consecutive failures, eA=%.4f, cQ=%.4f, aS=%.4f\n",
@@ -306,5 +277,242 @@ func (bp *Phase) Grow(minNeuronsToAdd int, maxNeuronsToAdd int, evalWithMultiCor
 		ClosenessBins: bestClosenessBins,
 		ApproxScore:   bestApproxScore,
 		NeuronsAdded:  neuronsAdded,
+	}
+}
+
+/*
+func (bp *Phase) NEWGrow(minNeuronsToAdd int, maxNeuronsToAdd int, evalWithMultiCore bool, checkpointFolder string, originalBP *Phase, samples *[]Sample, checkpoints *[]map[int]map[string]interface{}, workerID int, maxIterations int, maxConsecutiveFailures int, minConnections int, maxConnections int, epsilon float64) ModelResult {
+	bestBP := originalBP.Copy()
+	labels := *GetLabels(samples)
+
+	var bestExactAcc float64
+	var bestClosenessBins []float64
+	var bestApproxScore float64
+	if evalWithMultiCore {
+		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, &labels)
+	} else {
+		bestExactAcc, bestClosenessBins, bestApproxScore = bestBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, &labels)
+	}
+	bestClosenessQuality := bp.ComputeClosenessQuality(bestClosenessBins)
+
+	consecutiveFailures := 0
+	iterations := 0
+	neuronsAdded := 0
+
+	for consecutiveFailures < maxConsecutiveFailures && iterations < maxIterations {
+		iterations++
+		currentBP := bestBP.Copy()
+		numToAdd := rand.Intn(maxNeuronsToAdd-minNeuronsToAdd+1) + minNeuronsToAdd
+
+		for i := 0; i < numToAdd; i++ {
+			newNeuron := currentBP.AddNeuronFromPreOutputs("dense", "", minConnections, maxConnections)
+			if newNeuron != nil {
+				currentBP.AddNewNeuronToOutput(newNeuron.ID)
+				// Optimize the new neuron
+				currentBP.OptimizeNewNeuronParameters(newNeuron.ID, *checkpoints, labels, 10, 0.1, 100)
+				neuronsAdded++
+			}
+		}
+
+		var newExactAcc float64
+		var newClosenessBins []float64
+		var newApproxScore float64
+		if evalWithMultiCore {
+			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpointsMultiCore(checkpointFolder, checkpoints, &labels)
+		} else {
+			newExactAcc, newClosenessBins, newApproxScore = currentBP.EvaluateWithCheckpoints(checkpointFolder, checkpoints, &labels)
+		}
+		newClosenessQuality := currentBP.ComputeClosenessQuality(newClosenessBins)
+
+		if newExactAcc > bestExactAcc+epsilon || newClosenessQuality > bestClosenessQuality+epsilon || newApproxScore > bestApproxScore+epsilon {
+			bestBP = currentBP
+			bestExactAcc = newExactAcc
+			bestClosenessBins = newClosenessBins
+			bestClosenessQuality = newClosenessQuality
+			bestApproxScore = newApproxScore
+			consecutiveFailures = 0
+		} else {
+			consecutiveFailures++
+		}
+	}
+
+	return ModelResult{
+		BP:            bestBP,
+		ExactAcc:      bestExactAcc,
+		ClosenessBins: bestClosenessBins,
+		ApproxScore:   bestApproxScore,
+		NeuronsAdded:  neuronsAdded,
+	}
+}*/
+
+// OptimizeNewNeuronParameters optimizes the parameters of a newly added neuron using a perturbation-based search.
+func (bp *Phase) OptimizeNewNeuronParameters(newNeuronID int, checkpoints []map[int]map[string]interface{}, labels []float64, numPerturbations int, sigma float64, maxIterations int) {
+	// Get initial parameters
+	currentParams := bp.GetNewNeuronParameters(newNeuronID)
+
+	// Compute initial metrics
+	currentExactAcc, currentClosenessBins, currentApproxScore := bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+	currentClosenessQuality := bp.ComputeClosenessQuality(currentClosenessBins)
+
+	// Log initial metrics
+	//fmt.Printf("Starting optimization for neuron %d. Initial Metrics: ExactAcc=%.4f, ClosenessQuality=%.4f, ApproxScore=%.4f\n",
+	//	newNeuronID, currentExactAcc, currentClosenessQuality, currentApproxScore)
+
+	for iter := 0; iter < maxIterations; iter++ {
+		bestImprovement := 0.0
+		bestParams := make([]float64, len(currentParams))
+		copy(bestParams, currentParams)
+
+		// Generate and evaluate perturbations
+		for i := 0; i < numPerturbations; i++ {
+			// Generate perturbation
+			delta := make([]float64, len(currentParams))
+			for j := range delta {
+				delta[j] = rand.NormFloat64() * sigma
+			}
+			perturbedParams := make([]float64, len(currentParams))
+			for j := range perturbedParams {
+				perturbedParams[j] = currentParams[j] + delta[j]
+			}
+			bp.SetNewNeuronParameters(newNeuronID, perturbedParams)
+
+			// Compute new metrics
+			newExactAcc, newClosenessBins, newApproxScore := bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+			// := bp.ComputeClosenessQuality(newClosenessBins)
+
+			// Compute total improvement
+			improvement := bp.ComputeTotalImprovement(ModelResult{
+				ExactAcc:      newExactAcc,
+				ClosenessBins: newClosenessBins,
+				ApproxScore:   newApproxScore,
+			}, currentExactAcc, currentClosenessQuality, currentApproxScore)
+
+			// Log perturbation metrics
+			//fmt.Printf("Neuron %d, Iteration %d, Perturbation %d: Improvement=%.4f, ExactAcc=%.4f, ClosenessQuality=%.4f, ApproxScore=%.4f\n",
+			//	newNeuronID, iter, i, improvement, newExactAcc, newClosenessQuality, newApproxScore)
+
+			if improvement > bestImprovement {
+				bestImprovement = improvement
+				copy(bestParams, perturbedParams)
+			}
+		}
+
+		// Update if improvement found
+		if bestImprovement > 0 {
+			currentParams = bestParams
+			bp.SetNewNeuronParameters(newNeuronID, bestParams)
+
+			// Update current metrics
+			currentExactAcc, currentClosenessBins, currentApproxScore = bp.EvaluateMetricsFromCheckpoints(checkpoints, labels)
+			currentClosenessQuality = bp.ComputeClosenessQuality(currentClosenessBins)
+
+			// Log improvement
+			fmt.Printf("Neuron %d, Iteration %d: Improved total improvement to %.4f\n", newNeuronID, iter, bestImprovement)
+		} else {
+			// Log no improvement
+			fmt.Printf("Neuron %d, Iteration %d: No improvement found. Stopping optimization.\n", newNeuronID, iter)
+			break
+		}
+	}
+
+	// Log final metrics
+	//fmt.Printf("Optimization for neuron %d completed. Final Metrics: ExactAcc=%.4f, ClosenessQuality=%.4f, ApproxScore=%.4f\n",
+	//	newNeuronID, currentExactAcc, currentClosenessQuality, currentApproxScore)
+}
+
+// GetNewNeuronParameters retrieves the parameters (incoming weights, bias, outgoing weights) of a neuron.
+func (bp *Phase) GetNewNeuronParameters(newNeuronID int) []float64 {
+	newNeuron := bp.Neurons[newNeuronID]
+	params := []float64{}
+	// Incoming weights
+	for _, conn := range newNeuron.Connections {
+		params = append(params, conn[1])
+	}
+	// Bias
+	params = append(params, newNeuron.Bias)
+	// Outgoing weights to output neurons
+	for _, outID := range bp.OutputNodes {
+		outNeuron := bp.Neurons[outID]
+		for _, conn := range outNeuron.Connections {
+			if int(conn[0]) == newNeuronID {
+				params = append(params, conn[1])
+				break
+			}
+		}
+	}
+	return params
+}
+
+// SetNewNeuronParameters sets the parameters of a neuron from a slice.
+func (bp *Phase) SetNewNeuronParameters(newNeuronID int, params []float64) {
+	newNeuron := bp.Neurons[newNeuronID]
+	idx := 0
+	// Set incoming weights
+	for i := range newNeuron.Connections {
+		newNeuron.Connections[i][1] = params[idx]
+		idx++
+	}
+	// Set bias
+	newNeuron.Bias = params[idx]
+	idx++
+	// Set outgoing weights
+	for _, outID := range bp.OutputNodes {
+		outNeuron := bp.Neurons[outID]
+		for i, conn := range outNeuron.Connections {
+			if int(conn[0]) == newNeuronID {
+				outNeuron.Connections[i][1] = params[idx]
+				idx++
+				break
+			}
+		}
+	}
+}
+
+// EvaluateExactAccuracy computes the exact accuracy using checkpoints.
+func (bp *Phase) EvaluateExactAccuracy(checkpoints []map[int]map[string]interface{}, labels []float64) float64 {
+	exactAcc, _, _ := bp.EvaluateWithCheckpoints("", &checkpoints, &labels)
+	return exactAcc
+}
+
+// TrainWithNeuronAdditionAndOptimization is the new training method.
+func (bp *Phase) TrainWithNeuronAdditionAndOptimization(checkpoints []map[int]map[string]interface{}, labels []float64, maxNeuronsToAdd int, minConnections int, maxConnections int, numPerturbations int, sigma float64, maxIterations int) {
+	initialAcc := bp.EvaluateExactAccuracy(checkpoints, labels)
+	if bp.Debug {
+		fmt.Printf("Initial Exact Accuracy: %.4f%%\n", initialAcc)
+	}
+
+	for i := 0; i < maxNeuronsToAdd; i++ {
+		// Add a new neuron
+		newNeuron := bp.AddNeuronFromPreOutputs("dense", "linear", minConnections, maxConnections)
+		if newNeuron == nil {
+			if bp.Debug {
+				fmt.Println("Failed to add new neuron, stopping.")
+			}
+			break
+		}
+		bp.AddNewNeuronToOutput(newNeuron.ID)
+
+		// Optimize the new neuron's parameters
+		bp.OptimizeNewNeuronParameters(newNeuron.ID, checkpoints, labels, numPerturbations, sigma, maxIterations)
+
+		// Check improvement
+		newAcc := bp.EvaluateExactAccuracy(checkpoints, labels)
+		if bp.Debug {
+			fmt.Printf("After adding neuron %d: Exact Accuracy: %.4f%%\n", newNeuron.ID, newAcc)
+		}
+		if newAcc <= initialAcc {
+			if bp.Debug {
+				fmt.Println("No improvement detected, stopping.")
+			}
+			break
+		}
+		initialAcc = newAcc
+	}
+
+	// Apply softmax to output layer after optimization
+	bp.ApplySoftmax()
+	finalAcc := bp.EvaluateExactAccuracy(checkpoints, labels)
+	if bp.Debug {
+		fmt.Printf("Final Exact Accuracy with Softmax: %.4f%%\n", finalAcc)
 	}
 }

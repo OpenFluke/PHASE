@@ -9,7 +9,7 @@ import (
 var neuronTypes = []string{"dense", "rnn", "lstm", "cnn", "batch_norm", "dropout"}
 
 // Possible activation functions
-var possibleActivations = []string{"relu", "sigmoid", "tanh", "leaky_relu", "elu", "linear"}
+var possibleActivations = []string{"relu", "sigmoid", "tanh", "leaky_relu", "elu", "linear", "smooth_relu", "wavelet_act", "cauchy_act", "asym_act"}
 
 // AddRandomNeuron adds a new neuron of the given type (or random type if empty) to the Phase.
 // It creates random connections from existing neurons, sets a random bias, and chooses an activation if needed.
